@@ -1,0 +1,87 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0f1215;
+  --foreground: #f0f3f4;
+  --surface: #151a1e;
+  --surface-raised: #2b343b;
+  --border: #404e59;
+  --accent: #11ee8b;
+  --accent-muted: #639c7e;
+  --warm: #d19b2e;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-muted: var(--accent-muted);
+  --color-warm: var(--warm);
+
+  --color-onyx-50: #f0f3f4;
+  --color-onyx-100: #e1e6ea;
+  --color-onyx-200: #c4cdd4;
+  --color-onyx-300: #a6b4bf;
+  --color-onyx-400: #899ba9;
+  --color-onyx-500: #6b8294;
+  --color-onyx-600: #566876;
+  --color-onyx-700: #404e59;
+  --color-onyx-800: #2b343b;
+  --color-onyx-900: #151a1e;
+  --color-onyx-950: #0f1215;
+
+  --color-pine-50: #eff5f2;
+  --color-pine-100: #e0ebe5;
+  --color-pine-200: #c1d7cb;
+  --color-pine-300: #a2c3b1;
+  --color-pine-400: #83af98;
+  --color-pine-500: #639c7e;
+  --color-pine-600: #507c65;
+  --color-pine-700: #3c5d4b;
+  --color-pine-800: #283e32;
+  --color-pine-900: #141f19;
+
+  --color-sea-50: #e7fdf3;
+  --color-sea-100: #cffce8;
+  --color-sea-200: #a0f8d0;
+  --color-sea-300: #70f5b9;
+  --color-sea-400: #40f2a2;
+  --color-sea-500: #11ee8b;
+  --color-sea-600: #0dbf6f;
+  --color-sea-700: #0a8f53;
+  --color-sea-800: #075f37;
+  --color-sea-900: #03301c;
+
+  --color-sage-50: #f6f5ee;
+  --color-sage-100: #edebde;
+  --color-sage-200: #dbd7bd;
+  --color-sage-300: #c9c39c;
+  --color-sage-400: #b8ae7a;
+  --color-sage-500: #a69a59;
+  --color-sage-600: #857b47;
+
+  --color-fawn-50: #faf5ea;
+  --color-fawn-100: #f6ebd5;
+  --color-fawn-200: #edd7ab;
+  --color-fawn-300: #e3c382;
+  --color-fawn-400: #daaf58;
+  --color-fawn-500: #d19b2e;
+  --color-fawn-600: #a77c25;
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--onyx-700) transparent;
+}

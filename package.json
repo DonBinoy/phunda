@@ -1,0 +1,36 @@
+{
+  "name": "phunda",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "dev:webpack": "next dev --no-turbopack",
+    "dev:server": "npm run dev --prefix server",
+    "dev:all": "concurrently -n web,api -c cyan,green \"npm run dev\" \"npm run dev:server\"",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:setup": "npm run db:setup --prefix server",
+    "build": "next build",
+    "build:server": "npm run build --prefix server",
+    "start": "next start",
+    "start:server": "npm run start --prefix server",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "next": "16.2.10",
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "babel-plugin-react-compiler": "1.0.0",
+    "concurrently": "^9.1.2",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.10",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

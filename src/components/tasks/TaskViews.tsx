@@ -3,6 +3,7 @@
 import { DAILY_TASKS, PEOPLE } from "@/lib/constants";
 import {
   formatDisplayDate,
+  formatWeekdayShort,
   getDailyAssignments,
   getWeekendAssignments,
   isToday,
@@ -14,7 +15,7 @@ import {
   completionCountForDateFull,
   totalTaskCountForDate,
 } from "@/lib/tasks";
-import type { CompletionsStore, CustomTask, DailyTaskId, TodoList, WeekendTaskId } from "@/lib/types";
+import type { CompletionsStore, CustomTask, DailyTaskId, WeekendTaskId } from "@/lib/types";
 
 interface TaskCardProps {
   title: string;
@@ -181,7 +182,6 @@ interface TaskCalendarProps {
   selectedDate: Date;
   completions: CompletionsStore;
   customByDate: Record<string, CustomTask[]>;
-  todosByDate: Record<string, TodoList[]>;
 }
 
 export function TaskCalendar({
@@ -190,7 +190,6 @@ export function TaskCalendar({
   selectedDate,
   completions,
   customByDate,
-  todosByDate,
 }: TaskCalendarProps) {
   const dates: Date[] = [];
   const start = new Date(centerDate);
@@ -213,13 +212,12 @@ export function TaskCalendar({
           const today = isToday(date);
           const dayComp = completions[key];
           const custom = customByDate[key] ?? [];
-          const dayTodos = todosByDate[key] ?? [];
-          const totalTasks = totalTaskCountForDate(date, custom, dayTodos);
+          const totalTasks = totalTaskCountForDate(date, custom, []);
           const doneCount = completionCountForDateFull(
             date,
             completions,
             custom,
-            dayTodos,
+            [],
           );
           const allDone = totalTasks > 0 && doneCount === totalTasks;
 
@@ -237,7 +235,7 @@ export function TaskCalendar({
               }`}
             >
               <span className="text-[10px] uppercase text-onyx-500">
-                {date.toLocaleDateString("en-IN", { weekday: "narrow" })}
+                {formatWeekdayShort(date)}
               </span>
               <span
                 className={`text-sm font-semibold ${today ? "text-fawn-400" : "text-onyx-200"}`}

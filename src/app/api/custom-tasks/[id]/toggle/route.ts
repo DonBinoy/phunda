@@ -1,3 +1,6 @@
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 import { toggleCustomTask } from "@/lib/services/customTasks";
 import { handleError, json, withDb } from "@/lib/server/http";
 

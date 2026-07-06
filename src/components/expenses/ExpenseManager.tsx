@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useExpenses } from "@/hooks/useExpenses";
 import { PEOPLE } from "@/lib/constants";
-import { personName } from "@/lib/rotation";
-import type { PersonId } from "@/lib/types";
+import type { ExpenseEntry, PersonId } from "@/lib/types";
+
+type ExpenseTab = PersonId | "total";
 
 function formatINR(amount: number): string {
   return new Intl.NumberFormat("en-IN", {
@@ -12,6 +13,138 @@ function formatINR(amount: number): string {
     currency: "INR",
     maximumFractionDigits: 0,
   }).format(amount);
+}
+
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function EntryCard({
+  entry,
+  onRemove,
+}: {
+  entry: ExpenseEntry;
+  onRemove: (id: string) => void;
+}) {
+  const isExpense = entry.type === "expense";
+
+  return (
+    <div
+      className={`rounded-xl border p-4 ${
+        isExpense
+          ? "border-fawn-500/20 bg-fawn-500/5"
+          : "border-sea-500/20 bg-sea-500/5"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <span
+            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+              isExpense
+                ? "bg-fawn-500/20 text-fawn-400"
+                : "bg-sea-500/20 text-sea-400"
+            }`}
+          >
+            {isExpense ? "Expense" : "Income"}
+          </span>
+          <p className="mt-2 font-medium text-onyx-100">{entry.comment}</p>
+          <p className="mt-1 text-xs text-onyx-500">{formatDate(entry.createdAt)}</p>
+        </div>
+        <div className="flex flex-col items-end gap-2">
+          <span
+            className={`text-lg font-bold ${
+              isExpense ? "text-fawn-400" : "text-sea-400"
+            }`}
+          >
+            {isExpense ? "−" : "+"}
+            {formatINR(entry.amount)}
+          </span>
+          <button
+            type="button"
+            onClick={() => onRemove(entry.id)}
+            className="text-xs text-onyx-600 hover:text-fawn-400"
+          >
+            Remove
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PersonRecords({
+  personName,
+  income,
+  expense,
+  stats,
+  onRemove,
+}: {
+  personName: string;
+  income: ExpenseEntry[];
+  expense: ExpenseEntry[];
+  stats: { income: number; expense: number; balance: number };
+  onRemove: (id: string) => void;
+}) {
+  if (income.length === 0 && expense.length === 0) {
+    return (
+      <p className="rounded-xl border border-dashed border-onyx-800 py-10 text-center text-sm text-onyx-500">
+        No records for {personName} yet.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-xl border border-sea-500/20 bg-sea-500/5 p-3">
+          <p className="text-xs text-onyx-500">Income</p>
+          <p className="text-lg font-bold text-sea-400">{formatINR(stats.income)}</p>
+        </div>
+        <div className="rounded-xl border border-fawn-500/20 bg-fawn-500/5 p-3">
+          <p className="text-xs text-onyx-500">Expense</p>
+          <p className="text-lg font-bold text-fawn-400">{formatINR(stats.expense)}</p>
+        </div>
+        <div className="rounded-xl border border-onyx-800 bg-onyx-900 p-3">
+          <p className="text-xs text-onyx-500">Balance</p>
+          <p
+            className={`text-lg font-bold ${
+              stats.balance >= 0 ? "text-sea-400" : "text-fawn-400"
+            }`}
+          >
+            {formatINR(stats.balance)}
+          </p>
+        </div>
+      </div>
+
+      {income.length > 0 && (
+        <section className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-wider text-sea-500">
+            Income
+          </p>
+          {income.map((e) => (
+            <EntryCard key={e.id} entry={e} onRemove={onRemove} />
+          ))}
+        </section>
+      )}
+
+      {expense.length > 0 && (
+        <section className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-wider text-fawn-500">
+            Expenses
+          </p>
+          {expense.map((e) => (
+            <EntryCard key={e.id} entry={e} onRemove={onRemove} />
+          ))}
+        </section>
+      )}
+    </div>
+  );
 }
 
 export function ExpenseManager() {
@@ -23,6 +156,21 @@ export function ExpenseManager() {
   const [personId, setPersonId] = useState<PersonId | "">("");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<ExpenseTab>("total");
+
+  const byPerson = useMemo(() => {
+    return PEOPLE.map((person) => ({
+      person,
+      income: entries.filter((e) => e.type === "income" && e.personId === person.id),
+      expense: entries.filter((e) => e.type === "expense" && e.personId === person.id),
+      stats: totals.byPerson[person.id],
+    }));
+  }, [entries, totals.byPerson]);
+
+  const unassignedExpense = useMemo(
+    () => entries.filter((e) => e.type === "expense" && !e.personId),
+    [entries],
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,6 +216,11 @@ export function ExpenseManager() {
     );
   }
 
+  const activePerson =
+    activeTab !== "total"
+      ? byPerson.find((p) => p.person.id === activeTab)
+      : null;
+
   return (
     <div className="space-y-6">
       {(error || formError) && (
@@ -76,77 +229,74 @@ export function ExpenseManager() {
         </div>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <div className="rounded-xl border border-onyx-800 bg-onyx-900 p-4">
-          <p className="text-xs uppercase tracking-wider text-onyx-500">
-            Total expense
-          </p>
-          <p className="mt-1 text-2xl font-bold text-fawn-400">
-            {formatINR(totals.expense)}
-          </p>
-        </div>
-        <div className="rounded-xl border border-onyx-800 bg-onyx-900 p-4">
-          <p className="text-xs uppercase tracking-wider text-onyx-500">
-            Total income
-          </p>
-          <p className="mt-1 text-2xl font-bold text-sea-400">
-            {formatINR(totals.income)}
-          </p>
-        </div>
-        <div className="rounded-xl border border-pine-800/50 bg-pine-900/30 p-4">
-          <p className="text-xs uppercase tracking-wider text-onyx-500">
-            Balance
-          </p>
-          <p
-            className={`mt-1 text-2xl font-bold ${
-              totals.balance >= 0 ? "text-sea-400" : "text-fawn-400"
+      <div className="flex flex-wrap gap-2">
+        {PEOPLE.map((person) => (
+          <button
+            key={person.id}
+            type="button"
+            onClick={() => setActiveTab(person.id)}
+            className={`rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors ${
+              activeTab === person.id
+                ? "border-sea-500/50 bg-sea-500/10 text-sea-400"
+                : "border-onyx-800 bg-onyx-900 text-onyx-400 hover:border-onyx-700"
             }`}
           >
-            {formatINR(totals.balance)}
-          </p>
-        </div>
+            {person.name}
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={() => setActiveTab("total")}
+          className={`rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors ${
+            activeTab === "total"
+              ? "border-fawn-500/50 bg-fawn-500/10 text-fawn-400"
+              : "border-onyx-800 bg-onyx-900 text-onyx-400 hover:border-onyx-700"
+          }`}
+        >
+          Total
+        </button>
       </div>
 
-      <div className="space-y-3">
-        <h3 className="text-sm font-semibold uppercase tracking-wider text-onyx-400">
-          By person
-        </h3>
-        <div className="grid gap-2 sm:grid-cols-2">
-          {PEOPLE.map((person) => {
-            const stats = totals.byPerson[person.id];
-            return (
-              <div
-                key={person.id}
-                className="rounded-xl border border-onyx-800 bg-onyx-900/60 px-4 py-3"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-pine-800 text-sm font-bold text-pine-200">
-                    {person.name[0]}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-onyx-100">{person.name}</p>
-                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs">
-                      <span className="text-sea-400">
-                        +{formatINR(stats.income)}
-                      </span>
-                      <span className="text-fawn-400">
-                        −{formatINR(stats.expense)}
-                      </span>
-                      <span
-                        className={
-                          stats.balance >= 0 ? "text-pine-300" : "text-fawn-300"
-                        }
-                      >
-                        = {formatINR(stats.balance)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+      {activeTab === "total" ? (
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-xl border border-fawn-500/20 bg-fawn-500/5 p-4">
+            <p className="text-xs uppercase tracking-wider text-fawn-400/80">
+              Total expense
+            </p>
+            <p className="mt-1 text-2xl font-bold text-fawn-400">
+              {formatINR(totals.expense)}
+            </p>
+          </div>
+          <div className="rounded-xl border border-sea-500/20 bg-sea-500/5 p-4">
+            <p className="text-xs uppercase tracking-wider text-sea-400/80">
+              Total income
+            </p>
+            <p className="mt-1 text-2xl font-bold text-sea-400">
+              {formatINR(totals.income)}
+            </p>
+          </div>
+          <div className="rounded-xl border border-pine-800/50 bg-pine-900/30 p-4">
+            <p className="text-xs uppercase tracking-wider text-onyx-500">
+              Balance
+            </p>
+            <p
+              className={`mt-1 text-2xl font-bold ${
+                totals.balance >= 0 ? "text-sea-400" : "text-fawn-400"
+              }`}
+            >
+              {formatINR(totals.balance)}
+            </p>
+          </div>
         </div>
-      </div>
+      ) : activePerson ? (
+        <PersonRecords
+          personName={activePerson.person.name}
+          income={activePerson.income}
+          expense={activePerson.expense}
+          stats={activePerson.stats}
+          onRemove={handleRemove}
+        />
+      ) : null}
 
       <form
         onSubmit={handleSubmit}
@@ -189,9 +339,7 @@ export function ExpenseManager() {
                 key={person.id}
                 type="button"
                 onClick={() =>
-                  setPersonId((prev) =>
-                    prev === person.id ? "" : person.id,
-                  )
+                  setPersonId((prev) => (prev === person.id ? "" : person.id))
                 }
                 className={`rounded-lg border py-2 text-sm font-medium transition-colors ${
                   personId === person.id
@@ -203,18 +351,11 @@ export function ExpenseManager() {
               </button>
             ))}
           </div>
-          {type === "income" && !personId && (
-            <p className="mt-1.5 text-xs text-onyx-500">
-              Required for income entries
-            </p>
-          )}
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <label className="mb-1 block text-xs text-onyx-400">
-              Amount (₹)
-            </label>
+            <label className="mb-1 block text-xs text-onyx-400">Amount (₹)</label>
             <input
               type="number"
               min="1"
@@ -231,7 +372,7 @@ export function ExpenseManager() {
               type="text"
               value={comment}
               onChange={(e) => setComment(e.target.value)}
-              placeholder={type === "income" ? "Salary, contribution, etc." : "Groceries, rent, etc."}
+              placeholder={type === "income" ? "Salary, contribution…" : "Groceries, rent…"}
               className="w-full rounded-lg border border-onyx-700 bg-onyx-950 px-3 py-2.5 text-onyx-100 placeholder:text-onyx-600 focus:border-sea-500 focus:outline-none focus:ring-1 focus:ring-sea-500/30"
             />
           </div>
@@ -246,65 +387,40 @@ export function ExpenseManager() {
         </button>
       </form>
 
-      <div className="space-y-3">
-        <h3 className="text-sm font-semibold uppercase tracking-wider text-onyx-400">
-          History
-        </h3>
-        {entries.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-onyx-800 py-10 text-center text-sm text-onyx-500">
-            No entries yet. Add your first expense or income above.
-          </p>
-        ) : (
-          <ul className="space-y-2">
-            {entries.map((entry) => (
-              <li
-                key={entry.id}
-                className="flex items-center justify-between gap-3 rounded-xl border border-onyx-800 bg-onyx-900 px-4 py-3"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium text-onyx-100 truncate">
-                    {entry.comment}
-                  </p>
-                  <p className="text-xs text-onyx-500">
-                    {entry.personId && (
-                      <span className="text-pine-400">
-                        {personName(entry.personId)}
-                        {" · "}
-                      </span>
-                    )}
-                    {new Date(entry.createdAt).toLocaleDateString("en-IN", {
-                      day: "numeric",
-                      month: "short",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span
-                    className={`font-semibold ${
-                      entry.type === "expense" ? "text-fawn-400" : "text-sea-400"
-                    }`}
-                  >
-                    {entry.type === "expense" ? "−" : "+"}
-                    {formatINR(entry.amount)}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => handleRemove(entry.id)}
-                    className="text-onyx-600 hover:text-onyx-400 transition-colors"
-                    aria-label="Remove entry"
-                  >
-                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      {activeTab === "total" && (
+        <div className="space-y-4">
+          <h3 className="text-sm font-semibold uppercase tracking-wider text-onyx-400">
+            All records
+          </h3>
+          {entries.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-onyx-800 py-10 text-center text-sm text-onyx-500">
+              No entries yet.
+            </p>
+          ) : (
+            <div className="space-y-6">
+              {byPerson.map(({ person, income, expense }) => {
+                if (income.length === 0 && expense.length === 0) return null;
+                return (
+                  <section key={person.id} className="space-y-2">
+                    <p className="text-sm font-medium text-pine-300">{person.name}</p>
+                    {[...income, ...expense].map((e) => (
+                      <EntryCard key={e.id} entry={e} onRemove={handleRemove} />
+                    ))}
+                  </section>
+                );
+              })}
+              {unassignedExpense.length > 0 && (
+                <section className="space-y-2">
+                  <p className="text-sm font-medium text-onyx-400">Unassigned</p>
+                  {unassignedExpense.map((e) => (
+                    <EntryCard key={e.id} entry={e} onRemove={handleRemove} />
+                  ))}
+                </section>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

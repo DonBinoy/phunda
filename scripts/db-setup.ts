@@ -1,7 +1,6 @@
 import pg from "pg";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import dotenv from "dotenv";
+import { SCHEMA_SQL } from "../src/lib/db/schema";
 
 dotenv.config({ path: ".env.local" });
 dotenv.config();
@@ -40,10 +39,9 @@ async function ensureDatabase() {
 }
 
 async function runSchema() {
-  const schema = readFileSync(join(process.cwd(), "src/lib/db/schema.sql"), "utf-8");
   const app = new pg.Client({ connectionString: APP_URL });
   await app.connect();
-  await app.query(schema);
+  await app.query(SCHEMA_SQL);
   await app.end();
   console.log("Schema applied.");
 }

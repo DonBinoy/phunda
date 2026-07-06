@@ -1,3 +1,6 @@
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 import { deleteCustomTask } from "@/lib/services/customTasks";
 import { handleError, noContent, withDb } from "@/lib/server/http";
 

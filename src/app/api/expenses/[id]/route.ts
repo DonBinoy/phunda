@@ -1,3 +1,6 @@
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 import { deleteExpense } from "@/lib/services/expenses";
 import { handleError, noContent, withDb } from "@/lib/server/http";
 

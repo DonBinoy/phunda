@@ -1,3 +1,6 @@
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 import { getCompletions } from "@/lib/services/completions";
 import { handleError, json, withDb } from "@/lib/server/http";
 

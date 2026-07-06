@@ -1,3 +1,6 @@
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 import { deleteTodo } from "@/lib/services/todos";
 import { handleError, noContent, withDb } from "@/lib/server/http";
 

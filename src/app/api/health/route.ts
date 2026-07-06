@@ -1,3 +1,6 @@
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 import { pool } from "@/lib/db/pool";
 import { handleError, json, withDb } from "@/lib/server/http";
 

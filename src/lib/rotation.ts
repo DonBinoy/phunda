@@ -141,11 +141,16 @@ export function getWeekDates(center: Date): Date[] {
 }
 
 export function formatDisplayDate(date: Date): string {
-  return date.toLocaleDateString("en-IN", {
-    weekday: "short",
+  return `${formatWeekdayShort(date)}, ${date.toLocaleDateString("en-IN", {
     day: "numeric",
     month: "short",
-  });
+  })}`;
+}
+
+export function formatWeekdayShort(date: Date): string {
+  return date
+    .toLocaleDateString("en-US", { weekday: "short" })
+    .slice(0, 3);
 }
 
 export function isToday(date: Date): boolean {

@@ -4,7 +4,6 @@ import { useState } from "react";
 import { PEOPLE } from "@/lib/constants";
 import { isToday, isTomorrow, personName, toDateKey } from "@/lib/rotation";
 import type { CustomTask, PersonId } from "@/lib/types";
-import { TaskCard } from "./TaskViews";
 
 interface CustomTasksProps {
   date: Date;
@@ -12,6 +11,74 @@ interface CustomTasksProps {
   onToggle: (id: string) => void;
   onDelete: (id: string) => void;
   onAdd: (body: { title: string; personId: PersonId; date: string }) => Promise<unknown>;
+}
+
+function CustomTaskCard({
+  title,
+  assignee,
+  completed,
+  highlight,
+  onToggle,
+  onDelete,
+}: {
+  title: string;
+  assignee: string;
+  completed: boolean;
+  highlight?: "today" | "tomorrow";
+  onToggle: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div
+      className={`flex overflow-hidden rounded-xl border transition-all ${
+        completed
+          ? "border-sea-700/50 bg-sea-900/20 opacity-75"
+          : highlight === "today"
+            ? "border-sea-500/50 bg-sea-500/5"
+            : highlight === "tomorrow"
+              ? "border-fawn-500/40 bg-fawn-500/5"
+              : "border-onyx-700 bg-onyx-900"
+      }`}
+    >
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex min-w-0 flex-1 items-start gap-3 p-4 text-left hover:bg-onyx-800/40"
+      >
+        <div
+          className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 ${
+            completed
+              ? "border-sea-500 bg-sea-500 text-onyx-950"
+              : "border-onyx-600"
+          }`}
+        >
+          {completed && (
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p
+            className={`font-medium ${completed ? "text-onyx-400 line-through" : "text-onyx-100"}`}
+          >
+            {title}
+          </p>
+          <p className="mt-1 text-sm text-pine-400">{assignee}</p>
+        </div>
+      </button>
+      <button
+        type="button"
+        onClick={onDelete}
+        className="flex shrink-0 items-center border-l border-onyx-800 px-3 text-onyx-600 hover:bg-fawn-500/10 hover:text-fawn-400"
+        aria-label="Delete task"
+      >
+        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+        </svg>
+      </button>
+    </div>
+  );
 }
 
 export function CustomTasks({
@@ -28,7 +95,6 @@ export function CustomTasks({
   const [formError, setFormError] = useState<string | null>(null);
 
   const dateKey = toDateKey(date);
-  const dayTasks = tasks;
   const highlight = isToday(date) ? "today" : isTomorrow(date) ? "tomorrow" : undefined;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -114,32 +180,22 @@ export function CustomTasks({
         </form>
       )}
 
-      {dayTasks.length === 0 ? (
+      {tasks.length === 0 ? (
         <p className="rounded-xl border border-dashed border-onyx-800 py-6 text-center text-sm text-onyx-500">
           No custom tasks for this day.
         </p>
       ) : (
         <div className="grid gap-2 sm:grid-cols-2">
-          {dayTasks.map((task) => (
-            <div key={task.id} className="relative group/card">
-              <TaskCard
-                title={task.title}
-                assignee={personName(task.personId)}
-                completed={task.completed}
-                onToggle={() => onToggle(task.id)}
-                highlight={highlight}
-              />
-              <button
-                type="button"
-                onClick={() => onDelete(task.id)}
-                className="absolute right-3 top-3 rounded-md p-1 text-onyx-600 opacity-0 transition-opacity hover:text-fawn-400 group-hover/card:opacity-100"
-                aria-label="Delete task"
-              >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-              </button>
-            </div>
+          {tasks.map((task) => (
+            <CustomTaskCard
+              key={task.id}
+              title={task.title}
+              assignee={personName(task.personId)}
+              completed={task.completed}
+              highlight={highlight}
+              onToggle={() => onToggle(task.id)}
+              onDelete={() => onDelete(task.id)}
+            />
           ))}
         </div>
       )}

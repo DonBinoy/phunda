@@ -16,13 +16,14 @@ import {
 } from "@/lib/rotation";
 import { CustomTasks } from "./CustomTasks";
 import { PendingTasksAlert } from "./PendingTasksAlert";
-import { Todos } from "./Todos";
 import {
   DailyTasks,
   PersonOverview,
   TaskCalendar,
   WeekendTasks,
 } from "./TaskViews";
+
+const NO_TODOS: never[] = [];
 
 export function TaskManager() {
   const [selectedDate, setSelectedDate] = useState(() => new Date());
@@ -38,15 +39,7 @@ export function TaskManager() {
     toggleTask,
     removeTask,
   } = useCustomTasks(calendarCenter);
-  const {
-    todos,
-    byDate: todosByDate,
-    loading: todosLoading,
-    error: todosError,
-    addTodo,
-    toggleItem,
-    removeTodo,
-  } = useTodos(calendarCenter);
+  const { todos, loading: todosLoading } = useTodos(calendarCenter);
 
   const goToToday = () => {
     const now = new Date();
@@ -68,10 +61,10 @@ export function TaskManager() {
     selectedDate,
     completions,
     customTasks,
-    todos,
+    NO_TODOS,
   );
-  const totalCount = totalTaskCountForDate(selectedDate, customTasks, todos);
-  const displayError = error ?? customError ?? todosError;
+  const totalCount = totalTaskCountForDate(selectedDate, customTasks, NO_TODOS);
+  const displayError = error ?? customError;
   const today = new Date();
 
   return (
@@ -116,7 +109,6 @@ export function TaskManager() {
         onSelectDate={setSelectedDate}
         completions={completions}
         customByDate={customByDate}
-        todosByDate={todosByDate}
       />
 
       <DailyTasks
@@ -142,20 +134,11 @@ export function TaskManager() {
         onAdd={addTask}
       />
 
-      <Todos
-        date={selectedDate}
-        lists={todosByDate[dateKey] ?? []}
-        onToggleItem={toggleItem}
-        onDelete={removeTodo}
-        onAdd={addTodo}
-      />
-
       <div className="rounded-xl border border-pine-800/50 bg-pine-900/20 p-4">
         <h4 className="text-sm font-medium text-pine-300">How tasks work</h4>
         <p className="mt-1 text-xs leading-relaxed text-onyx-400">
           Daily chores rotate automatically. Weekend cleaning is extra on Sat/Sun.
-          Add custom tasks or todo lists with multiple checkable items. A reminder
-          shows all pending tasks for today until you dismiss it.
+          Add custom tasks for one-off jobs. Use the Todos tab for checklists.
         </p>
       </div>
     </div>

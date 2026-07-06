@@ -4,28 +4,40 @@ const { Pool } = pg;
 
 const globalForPg = globalThis as typeof globalThis & { pgPool?: pg.Pool };
 
-function buildConnectionString() {
+export function getDatabaseUrl(): string | undefined {
   return (
     process.env.DATABASE_URL ??
-    "postgresql://postgres:don123@localhost:5432/phunda?sslmode=disable"
+    process.env.POSTGRES_URL ??
+    process.env.POSTGRES_PRISMA_URL ??
+    undefined
   );
 }
 
-function useSsl(connectionString: string) {
+function resolveSsl(connectionString: string): false | { rejectUnauthorized: boolean } {
   if (connectionString.includes("sslmode=disable")) return false;
-  if (connectionString.includes("localhost")) return false;
+  if (connectionString.includes("localhost") || connectionString.includes("127.0.0.1")) {
+    return false;
+  }
   return { rejectUnauthorized: false };
 }
 
-export const pool =
-  globalForPg.pgPool ??
-  new Pool({
-    connectionString: buildConnectionString(),
-    ssl: useSsl(buildConnectionString()),
-    max: 5,
-  });
+function createPool(): pg.Pool {
+  const connectionString =
+    getDatabaseUrl() ??
+    "postgresql://postgres:don123@localhost:5432/phunda?sslmode=disable";
 
-if (process.env.NODE_ENV !== "production") {
+  return new Pool({
+    connectionString,
+    ssl: resolveSsl(connectionString),
+    max: process.env.VERCEL ? 1 : 5,
+    idleTimeoutMillis: 10_000,
+    connectionTimeoutMillis: 10_000,
+  });
+}
+
+export const pool = globalForPg.pgPool ?? createPool();
+
+if (!globalForPg.pgPool) {
   globalForPg.pgPool = pool;
 }
 

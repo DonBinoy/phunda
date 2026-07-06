@@ -5,32 +5,30 @@
   "scripts": {
     "dev": "next dev",
     "dev:webpack": "next dev --no-turbopack",
-    "dev:server": "npm run dev --prefix server",
-    "dev:all": "concurrently -n web,api -c cyan,green \"npm run dev\" \"npm run dev:server\"",
-    "db:up": "docker compose up -d",
-    "db:down": "docker compose down",
-    "db:setup": "npm run db:setup --prefix server",
+    "db:setup": "tsx scripts/db-setup.ts",
     "build": "next build",
-    "build:server": "npm run build --prefix server",
     "start": "next start",
-    "start:server": "npm run start --prefix server",
     "lint": "eslint"
   },
   "dependencies": {
     "next": "16.2.10",
+    "pg": "^8.13.1",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "zod": "^3.24.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pg": "^8.11.10",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "babel-plugin-react-compiler": "1.0.0",
-    "concurrently": "^9.1.2",
+    "dotenv": "^16.4.7",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
     "tailwindcss": "^4",
+    "tsx": "^4.19.2",
     "typescript": "^5"
   }
 }

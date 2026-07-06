@@ -2,82 +2,82 @@
 
 Home task rotation and expense tracker for Don, Bijo, Suraj, and Adithyan.
 
+**Frontend + API** run together as one **Next.js** app — ideal for **Vercel** deployment from a single repo.
+
 ## Features
 
-- **Daily chores** — auto-rotate every day among 4 people
-- **Weekend cleaning** — kitchen, bathroom, room on a 4-week cycle
-- **Calendar** — view and mark tasks complete
-- **Expenses** — track rupee expenses and income (stored in PostgreSQL)
+- Daily chores with auto-rotation
+- Weekend cleaning (extra on Sat/Sun)
+- Custom tasks & todo lists
+- Expense/income tracking per person
+- PostgreSQL storage
 
-## Quick start
+## Local setup
 
-### 1. Create database & tables
-
-Uses the same PostgreSQL server as your other projects (`postgres` user on localhost).
-
-```bash
-npm run db:setup
-```
-
-This creates the `phunda` database (if missing) and applies the schema.
-
-### 2. Configure environment
-
-```bash
-cp .env.example .env.local
-cp server/.env.example server/.env
-```
-
-Edit `server/.env` if your postgres password differs:
-
-```env
-DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@localhost:5432/phunda?sslmode=disable
-```
-
-### 3. Install dependencies
+### 1. Install
 
 ```bash
 npm install
-npm install --prefix server
 ```
 
-### 4. Run frontend + API together
+### 2. Environment
 
 ```bash
-npm run dev:all
+cp .env.example .env.local
 ```
 
-- Web app: [http://localhost:3000](http://localhost:3000)
-- API: [http://localhost:4000](http://localhost:4000)
+Edit `DATABASE_URL` in `.env.local` to point at your PostgreSQL database.
+
+### 3. Create database & tables
+
+```bash
+npm run db:setup
+```
+
+### 4. Run
+
+```bash
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000). API routes live at `/api/*` on the same server — **no CORS**.
+
+## Deploy on Vercel
+
+1. Push this repo to GitHub and import in [Vercel](https://vercel.com).
+2. Add a **PostgreSQL** database (Neon, Supabase, Vercel Postgres, or your own).
+3. In Vercel → **Settings → Environment Variables**, set:
+
+| Variable | Example |
+|----------|---------|
+| `DATABASE_URL` | `postgresql://user:pass@host/db?sslmode=require` |
+
+4. Run schema once against production DB (from your machine):
+
+```bash
+DATABASE_URL="your-production-url" npm run db:setup
+```
+
+5. **Redeploy** on Vercel.
+
+No `NEXT_PUBLIC_API_URL`, no CORS, no separate API server needed.
+
+## API routes
+
+| Method | Path |
+|--------|------|
+| GET | `/api/health` |
+| GET | `/api/completions` |
+| PUT | `/api/completions/toggle` |
+| GET/POST | `/api/expenses` |
+| DELETE | `/api/expenses/[id]` |
+| GET/POST | `/api/custom-tasks` |
+| PUT | `/api/custom-tasks/[id]/toggle` |
+| DELETE | `/api/custom-tasks/[id]` |
+| GET/POST | `/api/todos` |
+| PUT | `/api/todos/items/[id]/toggle` |
+| DELETE | `/api/todos/[id]` |
 
 ## Stack
 
-| Layer    | Tech                          |
-|----------|-------------------------------|
-| Frontend | Next.js, React, Tailwind CSS  |
-| Backend  | Node.js, Express, TypeScript  |
-| Database | PostgreSQL                    |
-
-## API endpoints
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/health` | Health check |
-| GET | `/api/completions?from=&to=` | Task completions by date range |
-| PUT | `/api/completions/toggle` | Mark task complete/incomplete |
-| GET | `/api/expenses` | List expenses + totals |
-| POST | `/api/expenses` | Add expense or income |
-| DELETE | `/api/expenses/:id` | Remove entry |
-
-## Run separately
-
-```bash
-# Terminal 1 — create DB (first time only)
-npm run db:setup
-
-# Terminal 2 — API
-npm run dev:server
-
-# Terminal 3 — frontend
-npm run dev
-```
+Next.js · React · Tailwind CSS · PostgreSQL · Vercel Serverless

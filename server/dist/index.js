@@ -1,10 +1,10 @@
-import cors from "cors";
 import express from "express";
 import dotenv from "dotenv";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { pool } from "./db/pool.js";
+import { corsMiddleware } from "./middleware/cors.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { completionsRouter } from "./routes/completions.js";
 import { customTasksRouter } from "./routes/customTasks.js";
@@ -20,10 +20,8 @@ async function runMigrations() {
 async function start() {
     await runMigrations();
     const app = express();
-    const corsOrigin = process.env.CORS_ORIGIN ?? "http://localhost:3000";
-    app.use(cors({
-        origin: corsOrigin.split(",").map((o) => o.trim()),
-    }));
+    app.use(corsMiddleware);
+    app.options("*", corsMiddleware);
     app.use(express.json());
     app.get("/api/health", async (_req, res) => {
         await pool.query("SELECT 1");

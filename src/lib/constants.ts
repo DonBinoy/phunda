@@ -1,4 +1,4 @@
-import type { DailyTask, Person, WeekendTask } from "./types";
+import type { DailyTask, Person, PersonId, WeekendTask } from "./types";
 
 export const PEOPLE: Person[] = [
   { id: "don", name: "Don" },
@@ -35,3 +35,10 @@ export const TASK_IDS = DAILY_TASKS.map((t) => t.id);
 export const PERSON_IDS = PEOPLE.map((p) => p.id);
 
 export const ROTATION_EPOCH = "2026-07-06";
+
+/** Kitchen cleaning alternates between these pairs each weekend */
+export const KITCHEN_PAIR_A: readonly PersonId[] = ["don", "suraj"];
+export const KITCHEN_PAIR_B: readonly PersonId[] = ["bijo", "adithyan"];
+
+/** Shifts kitchen pair so Jul 11 2026 weekend = Bijo & Adithyan (Don & Suraj did last weekend) */
+export const WEEKEND_KITCHEN_OFFSET = 1;

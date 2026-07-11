@@ -3,13 +3,15 @@
 import { useEffect, useState } from "react";
 import { getPendingTasks } from "@/lib/tasks";
 import { toDateKey } from "@/lib/rotation";
-import type { CompletionsStore, CustomTask, PendingTaskItem, TodoList } from "@/lib/types";
+import type { CompletionsStore, CustomTask, PendingTaskItem, TodoList, ViewScope } from "@/lib/types";
 
 interface PendingTasksAlertProps {
   date: Date;
   completions: CompletionsStore;
   customTasks: CustomTask[];
   todos: TodoList[];
+  outsideEatingDays?: ReadonlySet<string>;
+  viewScope: ViewScope;
 }
 
 const DISMISS_KEY = "phunda-pending-dismissed";
@@ -19,9 +21,18 @@ export function PendingTasksAlert({
   completions,
   customTasks,
   todos,
+  outsideEatingDays = new Set(),
+  viewScope,
 }: PendingTasksAlertProps) {
   const [dismissed, setDismissed] = useState(true);
-  const pending = getPendingTasks(date, completions, customTasks, todos);
+  const pending = getPendingTasks(
+    date,
+    completions,
+    customTasks,
+    todos,
+    outsideEatingDays,
+    viewScope,
+  );
 
   useEffect(() => {
     const key = `${DISMISS_KEY}-${toDateKey(date)}`;
@@ -44,33 +55,40 @@ export function PendingTasksAlert({
   };
 
   return (
-    <div className="rounded-xl border border-fawn-500/40 bg-fawn-500/10 p-4">
+    <div className="glass-card overflow-hidden border-fawn-500/25 bg-gradient-to-br from-fawn-500/10 to-transparent p-5">
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <h3 className="font-semibold text-fawn-300">
-            {pending.length} task{pending.length === 1 ? "" : "s"} still pending today
-          </h3>
-          <p className="mt-0.5 text-xs text-fawn-400/80">
-            Complete these before the day ends
-          </p>
+        <div className="flex items-start gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-fawn-500/20 text-fawn-400 ring-1 ring-fawn-500/30">
+            !
+          </div>
+          <div>
+            <h3 className="font-semibold text-fawn-200">
+              {viewScope.isAdmin
+                ? `${pending.length} pending today`
+                : `${pending.length} on your list`}
+            </h3>
+            <p className="mt-0.5 text-xs text-fawn-400/70">
+              Complete before the day ends
+            </p>
+          </div>
         </div>
         <button
           type="button"
           onClick={dismiss}
-          className="shrink-0 text-xs text-onyx-400 hover:text-onyx-200"
+          className="btn-ghost shrink-0 py-1 text-xs"
         >
           Dismiss
         </button>
       </div>
-      <ul className="mt-3 max-h-48 space-y-1.5 overflow-y-auto">
+      <ul className="mt-4 max-h-44 space-y-1.5 overflow-y-auto">
         {pending.map((item) => (
           <li
             key={item.id}
-            className="flex items-center justify-between gap-2 rounded-lg bg-onyx-950/40 px-3 py-2 text-sm"
+            className="flex items-center justify-between gap-2 rounded-xl border border-onyx-800/60 bg-onyx-950/50 px-3 py-2.5 text-sm backdrop-blur-sm"
           >
             <span className="min-w-0 truncate text-onyx-100">{item.label}</span>
             <span className="shrink-0 text-xs text-onyx-500">
-              <span className="text-pine-500">{kindLabel[item.kind]}</span>
+              <span className="text-pine-400">{kindLabel[item.kind]}</span>
               {item.assignee && ` · ${item.assignee}`}
             </span>
           </li>

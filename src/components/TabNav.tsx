@@ -7,30 +7,43 @@ interface TabNavProps {
   onChange: (tab: Tab) => void;
 }
 
-export function TabNav({ active, onChange }: TabNavProps) {
-  const tabs: { id: Tab; label: string; icon: string }[] = [
-    { id: "tasks", label: "Tasks", icon: "✓" },
-    { id: "todos", label: "Todos", icon: "☑" },
-    { id: "expenses", label: "Expenses", icon: "₹" },
-  ];
+const TABS: { id: Tab; label: string; desc: string }[] = [
+  { id: "tasks", label: "Tasks", desc: "Chores" },
+  { id: "todos", label: "Todos", desc: "Lists" },
+  { id: "expenses", label: "Money", desc: "Expenses" },
+];
 
+export function TabNav({ active, onChange }: TabNavProps) {
   return (
-    <nav className="mx-auto flex max-w-5xl gap-2 px-4 pt-4 sm:px-6">
-      {tabs.map((tab) => (
-        <button
-          key={tab.id}
-          type="button"
-          onClick={() => onChange(tab.id)}
-          className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-3 text-sm font-medium transition-all sm:flex-none sm:px-5 ${
-            active === tab.id
-              ? "bg-sea-500/15 text-sea-400 border border-sea-500/40 shadow-sm shadow-sea-500/10"
-              : "bg-onyx-900 text-onyx-400 border border-onyx-800 hover:border-onyx-700 hover:text-onyx-200"
-          }`}
-        >
-          <span className="text-base">{tab.icon}</span>
-          {tab.label}
-        </button>
-      ))}
-    </nav>
+    <div className="sticky top-[61px] z-40 border-b border-onyx-800/60 bg-onyx-950/60 backdrop-blur-xl">
+      <nav className="mx-auto max-w-6xl px-4 py-3 sm:px-6">
+        <div className="glass-card flex gap-1 p-1">
+          {TABS.map((tab) => {
+            const isActive = active === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => onChange(tab.id)}
+                className={`relative flex flex-1 flex-col items-center rounded-xl px-3 py-2.5 transition-all sm:flex-row sm:justify-center sm:gap-2 sm:py-3 ${
+                  isActive
+                    ? "bg-gradient-to-b from-sea-500/20 to-sea-500/5 text-sea-300 shadow-sm ring-1 ring-sea-500/30"
+                    : "text-onyx-500 hover:bg-onyx-800/50 hover:text-onyx-300"
+                }`}
+              >
+                <span
+                  className={`text-sm font-semibold ${isActive ? "text-sea-300" : ""}`}
+                >
+                  {tab.label}
+                </span>
+                <span className="hidden text-[10px] text-onyx-600 sm:inline">
+                  {tab.desc}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+    </div>
   );
 }

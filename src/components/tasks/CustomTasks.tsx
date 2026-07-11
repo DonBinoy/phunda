@@ -3,11 +3,14 @@
 import { useState } from "react";
 import { PEOPLE } from "@/lib/constants";
 import { isToday, isTomorrow, personName, toDateKey } from "@/lib/rotation";
-import type { CustomTask, PersonId } from "@/lib/types";
+import { Section } from "@/components/ui/Section";
+import type { CustomTask, PersonId, ViewScope } from "@/lib/types";
+import { lockedPersonId } from "@/lib/personalize";
 
 interface CustomTasksProps {
   date: Date;
   tasks: CustomTask[];
+  viewScope: ViewScope;
   onToggle: (id: string) => void;
   onDelete: (id: string) => void;
   onAdd: (body: { title: string; personId: PersonId; date: string }) => Promise<unknown>;
@@ -84,13 +87,16 @@ function CustomTaskCard({
 export function CustomTasks({
   date,
   tasks,
+  viewScope,
   onToggle,
   onDelete,
   onAdd,
 }: CustomTasksProps) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
-  const [personId, setPersonId] = useState<PersonId | "">("");
+  const [personId, setPersonId] = useState<PersonId | "">(
+    () => lockedPersonId(viewScope) ?? "",
+  );
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -99,7 +105,8 @@ export function CustomTasks({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !personId) {
+    const assignee = lockedPersonId(viewScope) ?? personId;
+    if (!title.trim() || !assignee) {
       setFormError("Enter a task name and assign someone");
       return;
     }
@@ -107,9 +114,9 @@ export function CustomTasks({
     setSubmitting(true);
     setFormError(null);
     try {
-      await onAdd({ title: title.trim(), personId, date: dateKey });
+      await onAdd({ title: title.trim(), personId: assignee, date: dateKey });
       setTitle("");
-      setPersonId("");
+      if (viewScope.isAdmin) setPersonId("");
       setOpen(false);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Failed to add task");
@@ -119,19 +126,18 @@ export function CustomTasks({
   };
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <h3 className="text-sm font-semibold uppercase tracking-wider text-onyx-400">
-          Custom tasks
-        </h3>
+    <Section
+      title={viewScope.isAdmin ? "Custom tasks" : "Your custom tasks"}
+      action={
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className="rounded-lg border border-pine-700/50 bg-pine-900/30 px-3 py-1.5 text-xs font-medium text-pine-300 hover:border-pine-600"
+          className="chip border border-pine-700/50 bg-pine-900/40 text-pine-300 hover:bg-pine-900/60"
         >
           {open ? "Cancel" : "+ Add task"}
         </button>
-      </div>
+      }
+    >
 
       {open && (
         <form
@@ -153,27 +159,33 @@ export function CustomTasks({
           </div>
           <div>
             <label className="mb-2 block text-xs text-onyx-400">Assign to</label>
-            <div className="grid grid-cols-4 gap-2">
-              {PEOPLE.map((person) => (
-                <button
-                  key={person.id}
-                  type="button"
-                  onClick={() => setPersonId(person.id)}
-                  className={`rounded-lg border py-2 text-sm font-medium transition-colors ${
-                    personId === person.id
-                      ? "border-sea-500/50 bg-sea-500/10 text-sea-400"
-                      : "border-onyx-700 text-onyx-400 hover:border-onyx-600"
-                  }`}
-                >
-                  {person.name}
-                </button>
-              ))}
-            </div>
+            {viewScope.isAdmin ? (
+              <div className="grid grid-cols-4 gap-2">
+                {PEOPLE.map((person) => (
+                  <button
+                    key={person.id}
+                    type="button"
+                    onClick={() => setPersonId(person.id)}
+                    className={`rounded-lg border py-2 text-sm font-medium transition-colors ${
+                      personId === person.id
+                        ? "border-sea-500/50 bg-sea-500/10 text-sea-400"
+                        : "border-onyx-700 text-onyx-400 hover:border-onyx-600"
+                    }`}
+                  >
+                    {person.name}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="rounded-lg border border-onyx-700 bg-onyx-950 px-3 py-2 text-sm text-pine-400">
+                {personName(viewScope.personId)}
+              </p>
+            )}
           </div>
           <button
             type="submit"
             disabled={submitting}
-            className="w-full rounded-lg bg-sea-500 py-2 text-sm font-semibold text-onyx-950 hover:bg-sea-400 disabled:opacity-50"
+            className="btn-primary w-full disabled:opacity-50"
           >
             {submitting ? "Adding…" : "Add custom task"}
           </button>
@@ -182,7 +194,9 @@ export function CustomTasks({
 
       {tasks.length === 0 ? (
         <p className="rounded-xl border border-dashed border-onyx-800 py-6 text-center text-sm text-onyx-500">
-          No custom tasks for this day.
+          {viewScope.isAdmin
+            ? "No custom tasks for this day."
+            : "No custom tasks for you on this day."}
         </p>
       ) : (
         <div className="grid gap-2 sm:grid-cols-2">
@@ -199,6 +213,6 @@ export function CustomTasks({
           ))}
         </div>
       )}
-    </div>
+    </Section>
   );
 }

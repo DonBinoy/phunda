@@ -1,5 +1,19 @@
 export type PersonId = "don" | "bijo" | "suraj" | "adithyan";
 
+export type SessionRole = "admin" | "person";
+
+export type AppSession =
+  | { role: "admin" }
+  | { role: "person"; personId: PersonId };
+
+export type ViewScope = { isAdmin: true } | { isAdmin: false; personId: PersonId };
+
+export function viewScopeFromSession(session: AppSession): ViewScope {
+  return session.role === "admin"
+    ? { isAdmin: true }
+    : { isAdmin: false, personId: session.personId };
+}
+
 export type DailyTaskId =
   | "paathram"
   | "veg"
@@ -48,6 +62,16 @@ export interface ExpenseEntry {
   amount: number;
   comment: string;
   personId?: PersonId;
+  createdAt: string;
+}
+
+export interface ExpenseTemplate {
+  id: string;
+  name: string;
+  amount: number;
+  personId?: PersonId;
+  splitEqually: boolean;
+  sortOrder: number;
   createdAt: string;
 }
 

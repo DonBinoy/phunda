@@ -1,11 +1,13 @@
 import {
   BASELINE_PERSON_TASKS,
   DAILY_TASKS,
+  KITCHEN_PAIR_A,
+  KITCHEN_PAIR_B,
   PEOPLE,
   PERSON_IDS,
   ROTATION_EPOCH,
   TASK_ROTATION,
-  WEEKEND_TASKS,
+  WEEKEND_KITCHEN_OFFSET,
 } from "./constants";
 import type {
   DailyAssignment,
@@ -47,8 +49,53 @@ export function isWeekend(date: Date): boolean {
 export const DAILY_TASK_COUNT = 4;
 export const WEEKEND_TASK_COUNT = 3;
 
-export function totalTasksForDate(date: Date): number {
-  return DAILY_TASK_COUNT + (isWeekend(date) ? WEEKEND_TASK_COUNT : 0);
+export function isOutsideEatingDay(
+  date: Date,
+  outsideEatingDays: ReadonlySet<string>,
+): boolean {
+  return outsideEatingDays.has(toDateKey(date));
+}
+
+export function countOutsideEatingDaysBefore(
+  date: Date,
+  outsideEatingDays: ReadonlySet<string>,
+): number {
+  if (outsideEatingDays.size === 0) return 0;
+
+  let count = 0;
+  const epoch = parseDateKey(ROTATION_EPOCH);
+  const current = new Date(epoch);
+  const target = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+  while (current < target) {
+    if (outsideEatingDays.has(toDateKey(current))) count++;
+    current.setDate(current.getDate() + 1);
+  }
+
+  return count;
+}
+
+export function getDailyAssignmentOffset(
+  date: Date,
+  outsideEatingDays: ReadonlySet<string>,
+): number {
+  return daysSinceEpoch(date) - countOutsideEatingDaysBefore(date, outsideEatingDays);
+}
+
+export function hasRescheduledDailyChores(
+  date: Date,
+  outsideEatingDays: ReadonlySet<string>,
+): boolean {
+  if (isOutsideEatingDay(date, outsideEatingDays)) return false;
+  return countOutsideEatingDaysBefore(date, outsideEatingDays) > 0;
+}
+
+export function totalTasksForDate(
+  date: Date,
+  outsideEatingDays: ReadonlySet<string> = new Set(),
+): number {
+  const daily = isOutsideEatingDay(date, outsideEatingDays) ? 0 : DAILY_TASK_COUNT;
+  return daily + (isWeekend(date) ? WEEKEND_TASK_COUNT : 0);
 }
 
 export function completionCountForDate(
@@ -71,12 +118,11 @@ function taskIndexForPerson(personId: PersonId, dayOffset: number): number {
   return idx;
 }
 
-export function getDailyAssignments(date: Date): DailyAssignment[] {
-  const offset = daysSinceEpoch(date);
+function buildDailyAssignments(dayOffset: number): DailyAssignment[] {
   const byTask = new Map<DailyTaskId, PersonId>();
 
   for (const personId of PERSON_IDS) {
-    const taskIdx = taskIndexForPerson(personId, offset);
+    const taskIdx = taskIndexForPerson(personId, dayOffset);
     byTask.set(INDEX_TASK[taskIdx], personId);
   }
 
@@ -86,33 +132,38 @@ export function getDailyAssignments(date: Date): DailyAssignment[] {
   }));
 }
 
+export function getDailyAssignments(
+  date: Date,
+  outsideEatingDays: ReadonlySet<string> = new Set(),
+): DailyAssignment[] {
+  if (isOutsideEatingDay(date, outsideEatingDays)) return [];
+  const offset = getDailyAssignmentOffset(date, outsideEatingDays);
+  return buildDailyAssignments(offset);
+}
+
 export function getPersonDailyTask(
   personId: PersonId,
   date: Date,
-): DailyTaskId {
-  const offset = daysSinceEpoch(date);
+  outsideEatingDays: ReadonlySet<string> = new Set(),
+): DailyTaskId | null {
+  if (isOutsideEatingDay(date, outsideEatingDays)) return null;
+  const offset = getDailyAssignmentOffset(date, outsideEatingDays);
   const taskIdx = taskIndexForPerson(personId, offset);
   return INDEX_TASK[taskIdx];
 }
 
 export function getWeekendAssignments(date: Date): WeekendAssignment[] {
   const saturdays = countSaturdaysSinceEpoch(date);
-  const weekIndex = ((saturdays % 4) + 4) % 4;
-  const rotated = [
-    PEOPLE[weekIndex % 4],
-    PEOPLE[(weekIndex + 1) % 4],
-    PEOPLE[(weekIndex + 2) % 4],
-    PEOPLE[(weekIndex + 3) % 4],
-  ];
+  const weekIndex =
+    (((saturdays + WEEKEND_KITCHEN_OFFSET) % 2) + 2) % 2;
+  const kitchenPair = weekIndex === 0 ? KITCHEN_PAIR_A : KITCHEN_PAIR_B;
+  const otherPair = weekIndex === 0 ? KITCHEN_PAIR_B : KITCHEN_PAIR_A;
 
-  let cursor = 0;
-  return WEEKEND_TASKS.map((task) => {
-    const personIds = rotated
-      .slice(cursor, cursor + task.slots)
-      .map((p) => p.id);
-    cursor += task.slots;
-    return { taskId: task.id, personIds };
-  });
+  return [
+    { taskId: "kitchen", personIds: [...kitchenPair] },
+    { taskId: "bathroom", personIds: [otherPair[0]] },
+    { taskId: "room", personIds: [otherPair[1]] },
+  ];
 }
 
 function countSaturdaysSinceEpoch(date: Date): number {

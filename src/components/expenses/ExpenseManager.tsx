@@ -1,11 +1,21 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useExpenses } from "@/hooks/useExpenses";
-import { PEOPLE } from "@/lib/constants";
+import { usePersonSession } from "@/context/PersonSessionContext";
+import { Alert } from "@/components/ui/Alert";
+import { LoadingState } from "@/components/ui/LoadingState";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { ExpenseRecap } from "@/components/expenses/ExpenseRecap";
+import { ExpenseTemplates } from "@/components/expenses/ExpenseTemplates";
+import { PEOPLE, PERSON_IDS } from "@/lib/constants";
+import { filterExpenses, lockedPersonId } from "@/lib/personalize";
+import { buildSplitShares } from "@/lib/expenses/split";
+import { personName } from "@/lib/rotation";
 import type { ExpenseEntry, PersonId } from "@/lib/types";
 
 type ExpenseTab = PersonId | "total";
+type EntryMode = "single" | "split";
 
 function formatINR(amount: number): string {
   return new Intl.NumberFormat("en-IN", {
@@ -36,7 +46,7 @@ function EntryCard({
 
   return (
     <div
-      className={`rounded-xl border p-4 ${
+      className={`glass-card rounded-2xl border p-4 ${
         isExpense
           ? "border-fawn-500/20 bg-fawn-500/5"
           : "border-sea-500/20 bg-sea-500/5"
@@ -54,6 +64,11 @@ function EntryCard({
             {isExpense ? "Expense" : "Income"}
           </span>
           <p className="mt-2 font-medium text-onyx-100">{entry.comment}</p>
+          {entry.personId && (
+            <p className="mt-0.5 text-xs text-pine-500">
+              {personName(entry.personId)}
+            </p>
+          )}
           <p className="mt-1 text-xs text-onyx-500">{formatDate(entry.createdAt)}</p>
         </div>
         <div className="flex flex-col items-end gap-2">
@@ -148,15 +163,33 @@ function PersonRecords({
 }
 
 export function ExpenseManager() {
-  const { entries, totals, loading, error, addEntry, removeEntry } =
+  const { viewScope, isAdmin } = usePersonSession();
+  const { entries: allEntries, totals, loading, error, addEntry, addSplitExpense, mergeCreated, removeEntry } =
     useExpenses();
   const [amount, setAmount] = useState("");
   const [comment, setComment] = useState("");
   const [type, setType] = useState<"expense" | "income">("expense");
-  const [personId, setPersonId] = useState<PersonId | "">("");
+  const [entryMode, setEntryMode] = useState<EntryMode>("single");
+  const [personId, setPersonId] = useState<PersonId | "">(
+    () => (viewScope && !viewScope.isAdmin ? viewScope.personId : ""),
+  );
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ExpenseTab>("total");
+
+  useEffect(() => {
+    if (viewScope && !viewScope.isAdmin) {
+      setPersonId(viewScope.personId);
+      setActiveTab(viewScope.personId);
+    } else {
+      setActiveTab("total");
+    }
+  }, [viewScope]);
+
+  const entries = useMemo(
+    () => filterExpenses(allEntries, viewScope),
+    [allEntries, viewScope],
+  );
 
   const byPerson = useMemo(() => {
     return PEOPLE.map((person) => ({
@@ -172,14 +205,42 @@ export function ExpenseManager() {
     [entries],
   );
 
+  const splitPreview = useMemo(() => {
+    const parsed = parseFloat(amount);
+    if (!parsed || parsed <= 0 || entryMode !== "split") return null;
+    return buildSplitShares(parsed, PERSON_IDS);
+  }, [amount, entryMode]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const parsed = parseFloat(amount);
     if (!parsed || parsed <= 0 || !comment.trim()) return;
+
+    if (entryMode === "split" && type === "expense") {
+      setSubmitting(true);
+      setFormError(null);
+      try {
+        await addSplitExpense({
+          amount: parsed,
+          comment: comment.trim(),
+        });
+        setAmount("");
+        setComment("");
+      } catch (err) {
+        setFormError(err instanceof Error ? err.message : "Failed to split expense");
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
     if (type === "income" && !personId) {
       setFormError("Select who received this income");
       return;
     }
+
+    const assignee =
+      lockedPersonId(viewScope) ?? (personId ? personId : undefined);
 
     setSubmitting(true);
     setFormError(null);
@@ -188,7 +249,7 @@ export function ExpenseManager() {
         type,
         amount: parsed,
         comment: comment.trim(),
-        personId: personId || undefined,
+        personId: assignee,
       });
       setAmount("");
       setComment("");
@@ -209,11 +270,7 @@ export function ExpenseManager() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20 text-onyx-500">
-        Loading expenses…
-      </div>
-    );
+    return <LoadingState label="Loading expenses…" />;
   }
 
   const activePerson =
@@ -221,43 +278,75 @@ export function ExpenseManager() {
       ? byPerson.find((p) => p.person.id === activeTab)
       : null;
 
-  return (
-    <div className="space-y-6">
-      {(error || formError) && (
-        <div className="rounded-lg border border-fawn-600/40 bg-fawn-500/10 px-4 py-3 text-sm text-fawn-300">
-          {error ?? formError}
-        </div>
-      )}
+  const personStats = viewScope && !viewScope.isAdmin
+    ? totals.byPerson[viewScope.personId]
+    : null;
 
-      <div className="flex flex-wrap gap-2">
-        {PEOPLE.map((person) => (
-          <button
-            key={person.id}
-            type="button"
-            onClick={() => setActiveTab(person.id)}
-            className={`rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors ${
+  return (
+    <div className="space-y-5">
+      {(error || formError) && <Alert>{error ?? formError}</Alert>}
+
+      <PageHeader
+        title="Expenses"
+        subtitle={
+          isAdmin
+            ? "Track household income & spending"
+            : "Your income and expenses"
+        }
+      />
+
+      {isAdmin ? (
+        <div className="glass-card flex flex-wrap gap-1.5 p-1.5">
+          {PEOPLE.map((person) => (
+            <button
+              key={person.id}
+              type="button"
+              onClick={() => setActiveTab(person.id)}
+            className={`rounded-xl px-4 py-2.5 text-sm font-medium transition-all ${
               activeTab === person.id
-                ? "border-sea-500/50 bg-sea-500/10 text-sea-400"
-                : "border-onyx-800 bg-onyx-900 text-onyx-400 hover:border-onyx-700"
+                ? "bg-sea-500/15 text-sea-400 ring-1 ring-sea-500/30"
+                : "text-onyx-400 hover:bg-onyx-800/60 hover:text-onyx-200"
+            }`}
+            >
+              {person.name}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => setActiveTab("total")}
+            className={`rounded-xl px-4 py-2.5 text-sm font-medium transition-all ${
+              activeTab === "total"
+                ? "bg-fawn-500/15 text-fawn-400 ring-1 ring-fawn-500/30"
+                : "text-onyx-400 hover:bg-onyx-800/60 hover:text-onyx-200"
             }`}
           >
-            {person.name}
+            Total
           </button>
-        ))}
-        <button
-          type="button"
-          onClick={() => setActiveTab("total")}
-          className={`rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors ${
-            activeTab === "total"
-              ? "border-fawn-500/50 bg-fawn-500/10 text-fawn-400"
-              : "border-onyx-800 bg-onyx-900 text-onyx-400 hover:border-onyx-700"
-          }`}
-        >
-          Total
-        </button>
-      </div>
+        </div>
+      ) : personStats ? (
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-xl border border-sea-500/20 bg-sea-500/5 p-3">
+            <p className="text-xs text-onyx-500">Your income</p>
+            <p className="text-lg font-bold text-sea-400">{formatINR(personStats.income)}</p>
+          </div>
+          <div className="rounded-xl border border-fawn-500/20 bg-fawn-500/5 p-3">
+            <p className="text-xs text-onyx-500">Your expense</p>
+            <p className="text-lg font-bold text-fawn-400">{formatINR(personStats.expense)}</p>
+          </div>
+          <div className="rounded-xl border border-onyx-800 bg-onyx-900 p-3">
+            <p className="text-xs text-onyx-500">Your balance</p>
+            <p
+              className={`text-lg font-bold ${
+                personStats.balance >= 0 ? "text-sea-400" : "text-fawn-400"
+              }`}
+            >
+              {formatINR(personStats.balance)}
+            </p>
+          </div>
+        </div>
+      ) : null}
 
-      {activeTab === "total" ? (
+      {isAdmin && activeTab === "total" ? (
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="rounded-xl border border-fawn-500/20 bg-fawn-500/5 p-4">
             <p className="text-xs uppercase tracking-wider text-fawn-400/80">
@@ -288,7 +377,15 @@ export function ExpenseManager() {
             </p>
           </div>
         </div>
-      ) : activePerson ? (
+      ) : isAdmin && activePerson ? (
+        <PersonRecords
+          personName={activePerson.person.name}
+          income={activePerson.income}
+          expense={activePerson.expense}
+          stats={activePerson.stats}
+          onRemove={handleRemove}
+        />
+      ) : !isAdmin && activePerson ? (
         <PersonRecords
           personName={activePerson.person.name}
           income={activePerson.income}
@@ -298,16 +395,22 @@ export function ExpenseManager() {
         />
       ) : null}
 
+      <ExpenseTemplates viewScope={viewScope} onApplied={mergeCreated} />
+
+      <ExpenseRecap entries={entries} showHousehold={isAdmin} />
+
       <form
         onSubmit={handleSubmit}
-        className="rounded-xl border border-onyx-800 bg-onyx-900 p-4 space-y-4"
+        className="glass-card space-y-4 p-5 sm:p-6"
       >
-        <h3 className="font-medium text-onyx-100">Add entry</h3>
+        <h3 className="font-semibold text-onyx-100">Add entry</h3>
 
         <div className="flex gap-2">
           <button
             type="button"
-            onClick={() => setType("expense")}
+            onClick={() => {
+              setType("expense");
+            }}
             className={`flex-1 rounded-lg border py-2 text-sm font-medium transition-colors ${
               type === "expense"
                 ? "border-fawn-500/50 bg-fawn-500/10 text-fawn-400"
@@ -318,7 +421,10 @@ export function ExpenseManager() {
           </button>
           <button
             type="button"
-            onClick={() => setType("income")}
+            onClick={() => {
+              setType("income");
+              setEntryMode("single");
+            }}
             className={`flex-1 rounded-lg border py-2 text-sm font-medium transition-colors ${
               type === "income"
                 ? "border-sea-500/50 bg-sea-500/10 text-sea-400"
@@ -329,33 +435,76 @@ export function ExpenseManager() {
           </button>
         </div>
 
+        {type === "expense" && (
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setEntryMode("single")}
+              className={`flex-1 rounded-lg border py-2 text-sm font-medium transition-colors ${
+                entryMode === "single"
+                  ? "border-pine-600/50 bg-pine-900/40 text-pine-300"
+                  : "border-onyx-700 text-onyx-400 hover:border-onyx-600"
+              }`}
+            >
+              Single entry
+            </button>
+            <button
+              type="button"
+              onClick={() => setEntryMode("split")}
+              className={`flex-1 rounded-lg border py-2 text-sm font-medium transition-colors ${
+                entryMode === "split"
+                  ? "border-pine-600/50 bg-pine-900/40 text-pine-300"
+                  : "border-onyx-700 text-onyx-400 hover:border-onyx-600"
+              }`}
+            >
+              Split equally
+            </button>
+          </div>
+        )}
+
+        {entryMode === "single" && (
         <div>
           <label className="mb-2 block text-xs text-onyx-400">
             {type === "income" ? "Who received this?" : "Paid by (optional)"}
           </label>
-          <div className="grid grid-cols-4 gap-2">
-            {PEOPLE.map((person) => (
-              <button
-                key={person.id}
-                type="button"
-                onClick={() =>
-                  setPersonId((prev) => (prev === person.id ? "" : person.id))
-                }
-                className={`rounded-lg border py-2 text-sm font-medium transition-colors ${
-                  personId === person.id
-                    ? "border-sea-500/50 bg-sea-500/10 text-sea-400"
-                    : "border-onyx-700 text-onyx-400 hover:border-onyx-600"
-                }`}
-              >
-                {person.name}
-              </button>
-            ))}
-          </div>
+          {isAdmin ? (
+            <div className="grid grid-cols-4 gap-2">
+              {PEOPLE.map((person) => (
+                <button
+                  key={person.id}
+                  type="button"
+                  onClick={() =>
+                    setPersonId((prev) => (prev === person.id ? "" : person.id))
+                  }
+                  className={`rounded-lg border py-2 text-sm font-medium transition-colors ${
+                    personId === person.id
+                      ? "border-sea-500/50 bg-sea-500/10 text-sea-400"
+                      : "border-onyx-700 text-onyx-400 hover:border-onyx-600"
+                  }`}
+                >
+                  {person.name}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="rounded-lg border border-onyx-700 bg-onyx-950 px-3 py-2 text-sm text-pine-400">
+              {PEOPLE.find((p) => p.id === personId)?.name}
+            </p>
+          )}
         </div>
+        )}
+
+        {entryMode === "split" && type === "expense" && (
+          <p className="rounded-lg border border-pine-800/50 bg-pine-900/30 px-3 py-2 text-sm text-pine-300">
+            Total is split equally between Don, Bijo, Suraj, and Adithyan.
+          </p>
+        )}
 
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <label className="mb-1 block text-xs text-onyx-400">Amount (₹)</label>
+            <label className="mb-1 block text-xs text-onyx-400">
+              {entryMode === "split" ? "Total amount (₹)" : "Amount (₹)"}
+            </label>
             <input
               type="number"
               min="1"
@@ -378,16 +527,41 @@ export function ExpenseManager() {
           </div>
         </div>
 
+        {splitPreview && (
+          <div className="rounded-lg border border-onyx-800 bg-onyx-950 p-3">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-onyx-500">
+              Split preview
+            </p>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {splitPreview.map(({ personId: id, amount: share }) => (
+                <div
+                  key={id}
+                  className="rounded-lg border border-onyx-800 bg-onyx-900 px-3 py-2 text-center"
+                >
+                  <p className="text-xs text-pine-400">{personName(id)}</p>
+                  <p className="text-sm font-semibold text-fawn-400">
+                    {formatINR(share)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <button
           type="submit"
           disabled={submitting}
-          className="w-full rounded-lg bg-sea-500 py-2.5 text-sm font-semibold text-onyx-950 hover:bg-sea-400 transition-colors disabled:opacity-50"
+          className="btn-primary w-full disabled:opacity-50"
         >
-          {submitting ? "Saving…" : `Add ${type === "expense" ? "expense" : "income"}`}
+          {submitting
+            ? "Saving…"
+            : entryMode === "split" && type === "expense"
+              ? "Split & add to records"
+              : `Add ${type === "expense" ? "expense" : "income"}`}
         </button>
       </form>
 
-      {activeTab === "total" && (
+      {isAdmin && activeTab === "total" && (
         <div className="space-y-4">
           <h3 className="text-sm font-semibold uppercase tracking-wider text-onyx-400">
             All records

@@ -1,0 +1,25 @@
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+import {
+  createExpenseTemplate,
+  getExpenseTemplates,
+} from "@/lib/services/expenseTemplates";
+import { handleError, json, withDb } from "@/lib/server/http";
+
+export async function GET() {
+  try {
+    return await withDb(async () => json(await getExpenseTemplates()));
+  } catch (err) {
+    return handleError(err);
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+    return await withDb(async () => json(await createExpenseTemplate(body), 201));
+  } catch (err) {
+    return handleError(err);
+  }
+}

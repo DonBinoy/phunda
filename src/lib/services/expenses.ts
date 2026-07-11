@@ -1,20 +1,28 @@
 import { z } from "zod";
 import { pool } from "@/lib/db/pool";
+import { PERSON_IDS } from "@/lib/constants";
+import { buildSplitShares } from "@/lib/expenses/split";
 import { AppError } from "@/lib/server/errors";
 
-const PERSON_IDS = ["don", "bijo", "suraj", "adithyan"] as const;
+const PERSON_ID_ENUM = ["don", "bijo", "suraj", "adithyan"] as const;
 
 const createSchema = z
   .object({
     type: z.enum(["expense", "income"]),
     amount: z.number().positive(),
     comment: z.string().trim().min(1).max(500),
-    personId: z.enum(PERSON_IDS).optional(),
+    personId: z.enum(PERSON_ID_ENUM).optional(),
   })
   .refine((data) => data.type !== "income" || !!data.personId, {
     message: "personId is required for income entries",
     path: ["personId"],
   });
+
+const splitSchema = z.object({
+  amount: z.number().positive(),
+  comment: z.string().trim().min(1).max(500),
+  personIds: z.array(z.enum(PERSON_ID_ENUM)).min(2).optional(),
+});
 
 function mapRow(row: {
   id: string;
@@ -82,6 +90,37 @@ export async function createExpense(body: unknown) {
     [data.type, data.amount, data.comment, data.personId ?? null],
   );
   return mapRow(rows[0]);
+}
+
+export async function createSplitExpense(body: unknown) {
+  const data = splitSchema.parse(body);
+  const members = data.personIds ?? [...PERSON_IDS];
+  const shares = buildSplitShares(data.amount, members);
+  const splitComment = `${data.comment} (split equally)`;
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const created = [];
+
+    for (const { personId, amount } of shares) {
+      const { rows } = await client.query(
+        `INSERT INTO expense_entries (type, amount, comment, person_id)
+         VALUES ('expense', $1, $2, $3)
+         RETURNING id, type, amount, comment, person_id, created_at`,
+        [amount, splitComment, personId],
+      );
+      created.push(mapRow(rows[0]));
+    }
+
+    await client.query("COMMIT");
+    return created;
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 export async function deleteExpense(id: string) {

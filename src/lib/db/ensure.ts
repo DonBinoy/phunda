@@ -1,5 +1,9 @@
 import pg from "pg";
-import { SCHEMA_SQL } from "./schema";
+import {
+  EXPENSE_TEMPLATES_TABLE_SQL,
+  OUTSIDE_EATING_TABLE_SQL,
+  SCHEMA_SQL,
+} from "./schema";
 import { getDatabaseUrl, isPoolerUrl, pool } from "./pool";
 
 const globalForDb = globalThis as typeof globalThis & { dbReady?: boolean };
@@ -15,14 +19,15 @@ function resolveSsl(connectionString: string): false | { rejectUnauthorized: boo
   return { rejectUnauthorized: false };
 }
 
-async function tablesExist(): Promise<boolean> {
+async function tableExists(tableName: string): Promise<boolean> {
   const { rows } = await pool.query<{ ok: boolean }>(
     `SELECT EXISTS (
        SELECT 1
        FROM information_schema.tables
        WHERE table_schema = 'public'
-         AND table_name = 'task_completions'
+         AND table_name = $1
      ) AS ok`,
+    [tableName],
   );
   return rows[0]?.ok === true;
 }
@@ -51,10 +56,38 @@ function getSchemaConnectionString(): string | undefined {
   return undefined;
 }
 
-export async function ensureDb() {
-  if (globalForDb.dbReady) return;
+async function ensureMigrations() {
+  if (!(await tableExists("outside_eating_days"))) {
+    const schemaUrl = getSchemaConnectionString();
+    if (schemaUrl) {
+      const client = new pg.Client({
+        connectionString: schemaUrl,
+        ssl: resolveSsl(schemaUrl),
+      });
+      try {
+        await client.connect();
+        await client.query(OUTSIDE_EATING_TABLE_SQL);
+      } finally {
+        await client.end();
+      }
+    } else {
+      await pool.query(OUTSIDE_EATING_TABLE_SQL);
+    }
+  }
 
-  if (await tablesExist()) {
+  if (!(await tableExists("expense_templates"))) {
+    await pool.query(EXPENSE_TEMPLATES_TABLE_SQL);
+  }
+}
+
+export async function ensureDb() {
+  if (globalForDb.dbReady) {
+    await ensureMigrations();
+    return;
+  }
+
+  if (await tableExists("task_completions")) {
+    await ensureMigrations();
     globalForDb.dbReady = true;
     return;
   }
@@ -66,9 +99,10 @@ export async function ensureDb() {
 
   await runSchema(schemaUrl);
 
-  if (!(await tablesExist())) {
+  if (!(await tableExists("task_completions"))) {
     throw new Error(SCHEMA_SETUP_HINT);
   }
 
+  await ensureMigrations();
   globalForDb.dbReady = true;
 }

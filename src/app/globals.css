@@ -1,11 +1,11 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0f1215;
+  --background: #0a0d10;
   --foreground: #f0f3f4;
-  --surface: #151a1e;
-  --surface-raised: #2b343b;
-  --border: #404e59;
+  --surface: #12171c;
+  --surface-raised: #1a2128;
+  --border: #2b343b;
   --accent: #11ee8b;
   --accent-muted: #639c7e;
   --warm: #d19b2e;
@@ -79,9 +79,103 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--onyx-700) transparent;
+}
+
+/* Ambient app background */
+.app-bg {
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(17, 238, 139, 0.08), transparent),
+    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(209, 155, 46, 0.05), transparent),
+    radial-gradient(ellipse 50% 30% at 0% 100%, rgba(99, 156, 126, 0.06), transparent),
+    var(--background);
+}
+
+.glass-card {
+  border-radius: 1rem;
+  border: 1px solid rgba(64, 78, 89, 0.5);
+  background: linear-gradient(
+    145deg,
+    rgba(21, 26, 30, 0.9) 0%,
+    rgba(15, 18, 21, 0.95) 100%
+  );
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 4px 24px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(12px);
+}
+
+.glass-card-hover {
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+}
+
+.glass-card-hover:hover {
+  border-color: rgba(17, 238, 139, 0.25);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    0 8px 32px rgba(0, 0, 0, 0.35);
+}
+
+.btn-ghost {
+  border-radius: 0.75rem;
+  border: 1px solid var(--onyx-700);
+  background: rgba(43, 52, 59, 0.4);
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  color: var(--onyx-300);
+  transition: all 0.15s;
+}
+
+.btn-ghost:hover {
+  border-color: var(--onyx-600);
+  background: rgba(43, 52, 59, 0.7);
+  color: var(--onyx-100);
+}
+
+.btn-primary {
+  border-radius: 0.75rem;
+  background: linear-gradient(135deg, #11ee8b 0%, #0dbf6f 100%);
+  padding: 0.625rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #0a0d10;
+  transition: opacity 0.15s, transform 0.1s;
+  box-shadow: 0 2px 12px rgba(17, 238, 139, 0.25);
+}
+
+.btn-primary:hover {
+  opacity: 0.92;
+}
+
+.btn-primary:active {
+  transform: scale(0.98);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  padding: 0.125rem 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.35s ease-out forwards;
 }

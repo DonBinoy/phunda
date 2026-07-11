@@ -1,13 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useCustomTasks } from "@/hooks/useCustomTasks";
 import { useCompletions } from "@/hooks/useCompletions";
+import { useOutsideEating } from "@/hooks/useOutsideEating";
 import { useTodos } from "@/hooks/useTodos";
+import { usePersonSession } from "@/context/PersonSessionContext";
+import { Alert } from "@/components/ui/Alert";
+import { LoadingState } from "@/components/ui/LoadingState";
+import { PageHeader } from "@/components/ui/PageHeader";
 import {
   completionCountForDateFull,
   totalTaskCountForDate,
 } from "@/lib/tasks";
+import { filterCustomTasks, filterTodos } from "@/lib/personalize";
 import {
   formatDisplayDate,
   isToday,
@@ -23,23 +29,44 @@ import {
   WeekendTasks,
 } from "./TaskViews";
 
-const NO_TODOS: never[] = [];
-
 export function TaskManager() {
+  const { viewScope, isAdmin } = usePersonSession();
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [calendarCenter, setCalendarCenter] = useState(() => new Date());
   const { completions, loading, error, toggleDaily, toggleWeekend } =
     useCompletions(calendarCenter);
   const {
-    tasks: customTasks,
-    byDate: customByDate,
+    outsideEatingDays,
+    loading: outsideLoading,
+    error: outsideError,
+    toggleDay: toggleOutsideEating,
+  } = useOutsideEating(calendarCenter);
+  const {
+    tasks: customTasksRaw,
     loading: customLoading,
     error: customError,
     addTask,
     toggleTask,
     removeTask,
   } = useCustomTasks(calendarCenter);
-  const { todos, loading: todosLoading } = useTodos(calendarCenter);
+  const { todos: todosRaw, loading: todosLoading } = useTodos(calendarCenter);
+
+  const customTasks = useMemo(
+    () => filterCustomTasks(customTasksRaw, viewScope),
+    [customTasksRaw, viewScope],
+  );
+  const customByDate = useMemo(() => {
+    const map: Record<string, typeof customTasks> = {};
+    for (const task of customTasks) {
+      if (!map[task.date]) map[task.date] = [];
+      map[task.date].push(task);
+    }
+    return map;
+  }, [customTasks]);
+  const todos = useMemo(
+    () => filterTodos(todosRaw, viewScope),
+    [todosRaw, viewScope],
+  );
 
   const goToToday = () => {
     const now = new Date();
@@ -47,12 +74,8 @@ export function TaskManager() {
     setCalendarCenter(now);
   };
 
-  if (loading || customLoading || todosLoading) {
-    return (
-      <div className="flex items-center justify-center py-20 text-onyx-500">
-        Loading tasks…
-      </div>
-    );
+  if (!viewScope || loading || customLoading || todosLoading || outsideLoading) {
+    return <LoadingState label="Loading tasks…" />;
   }
 
   const weekend = isWeekend(selectedDate);
@@ -61,47 +84,48 @@ export function TaskManager() {
     selectedDate,
     completions,
     customTasks,
-    NO_TODOS,
+    todos,
+    outsideEatingDays,
+    viewScope,
   );
-  const totalCount = totalTaskCountForDate(selectedDate, customTasks, NO_TODOS);
-  const displayError = error ?? customError;
+  const totalCount = totalTaskCountForDate(
+    selectedDate,
+    customTasks,
+    todos,
+    outsideEatingDays,
+    viewScope,
+  );
+  const displayError = error ?? customError ?? outsideError;
   const today = new Date();
 
   return (
-    <div className="space-y-6">
-      {displayError && (
-        <div className="rounded-lg border border-fawn-600/40 bg-fawn-500/10 px-4 py-3 text-sm text-fawn-300">
-          {displayError}
-        </div>
-      )}
+    <div className="space-y-5">
+      {displayError && <Alert>{displayError}</Alert>}
 
       <PendingTasksAlert
         date={today}
         completions={completions}
         customTasks={customTasks}
         todos={todos}
+        outsideEatingDays={outsideEatingDays}
+        viewScope={viewScope}
       />
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold text-onyx-50">
-            {formatDisplayDate(selectedDate)}
-            {isToday(selectedDate) && (
-              <span className="ml-2 text-sm font-normal text-sea-400">(Today)</span>
-            )}
-          </h2>
-          <p className="text-sm text-onyx-400">
-            {doneCount}/{totalCount} completed
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={goToToday}
-          className="rounded-lg border border-onyx-700 bg-onyx-800 px-3 py-1.5 text-sm text-onyx-300 hover:border-onyx-600 hover:text-onyx-100"
-        >
-          Jump to today
-        </button>
-      </div>
+      <PageHeader
+        title={formatDisplayDate(selectedDate)}
+        badge={isToday(selectedDate) ? "Today" : undefined}
+        subtitle={
+          totalCount > 0
+            ? `${doneCount} of ${totalCount} tasks completed`
+            : "No tasks scheduled"
+        }
+        progress={{ done: doneCount, total: totalCount }}
+        action={
+          <button type="button" onClick={goToToday} className="btn-ghost shrink-0">
+            Jump to today
+          </button>
+        }
+      />
 
       <TaskCalendar
         centerDate={calendarCenter}
@@ -109,38 +133,60 @@ export function TaskManager() {
         onSelectDate={setSelectedDate}
         completions={completions}
         customByDate={customByDate}
+        outsideEatingDays={outsideEatingDays}
+        viewScope={viewScope}
       />
 
-      <DailyTasks
-        date={selectedDate}
-        completions={completions}
-        onToggle={toggleDaily}
-      />
-      <PersonOverview date={selectedDate} />
+      <div
+        className={`grid gap-5 ${isAdmin ? "lg:grid-cols-2" : ""}`}
+      >
+        <div className="space-y-5">
+          <DailyTasks
+            date={selectedDate}
+            completions={completions}
+            outsideEatingDays={outsideEatingDays}
+            viewScope={viewScope}
+            onToggle={toggleDaily}
+            onToggleOutsideEating={toggleOutsideEating}
+          />
+          {weekend && (
+            <WeekendTasks
+              date={selectedDate}
+              completions={completions}
+              viewScope={viewScope}
+              onToggle={toggleWeekend}
+            />
+          )}
+        </div>
 
-      {weekend && (
-        <WeekendTasks
-          date={selectedDate}
-          completions={completions}
-          onToggle={toggleWeekend}
-        />
-      )}
+        {isAdmin && (
+          <PersonOverview
+            date={selectedDate}
+            outsideEatingDays={outsideEatingDays}
+            viewScope={viewScope}
+          />
+        )}
+      </div>
 
       <CustomTasks
         date={selectedDate}
         tasks={customByDate[dateKey] ?? []}
+        viewScope={viewScope}
         onToggle={toggleTask}
         onDelete={removeTask}
         onAdd={addTask}
       />
 
-      <div className="rounded-xl border border-pine-800/50 bg-pine-900/20 p-4">
-        <h4 className="text-sm font-medium text-pine-300">How tasks work</h4>
-        <p className="mt-1 text-xs leading-relaxed text-onyx-400">
-          Daily chores rotate automatically. Weekend cleaning is extra on Sat/Sun.
-          Add custom tasks for one-off jobs. Use the Todos tab for checklists.
-        </p>
-      </div>
+      {isAdmin && (
+        <div className="glass-card border-pine-800/30 bg-gradient-to-br from-pine-900/20 to-transparent p-5">
+          <h4 className="text-sm font-medium text-pine-300">How it works</h4>
+          <p className="mt-1.5 text-xs leading-relaxed text-onyx-400">
+            Daily chores rotate automatically. Mark &quot;ate outside&quot; to
+            move cooking chores to tomorrow. Weekend kitchen alternates between
+            Don &amp; Suraj and Adithyan &amp; Bijo.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,10 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTodos } from "@/hooks/useTodos";
+import { usePersonSession } from "@/context/PersonSessionContext";
+import { Alert } from "@/components/ui/Alert";
+import { LoadingState } from "@/components/ui/LoadingState";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { filterTodos } from "@/lib/personalize";
 import { formatDisplayDate, formatWeekdayShort, isToday, toDateKey } from "@/lib/rotation";
 import { todoStats } from "@/lib/tasks";
-import type { TodoList } from "@/lib/types";
+import type { TodoList, ViewScope } from "@/lib/types";
 import { Todos } from "../tasks/Todos";
 
 function TodoCalendar({
@@ -79,10 +84,11 @@ function TodoCalendar({
 }
 
 export function TodoManager() {
+  const { viewScope } = usePersonSession();
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [calendarCenter, setCalendarCenter] = useState(() => new Date());
   const {
-    byDate: todosByDate,
+    byDate: todosByDateRaw,
     loading,
     error,
     addTodo,
@@ -90,64 +96,71 @@ export function TodoManager() {
     removeTodo,
   } = useTodos(calendarCenter);
 
+  const todosByDate = useMemo(() => {
+    const filtered = filterTodos(
+      Object.values(todosByDateRaw).flat(),
+      viewScope,
+    );
+    const map: Record<string, TodoList[]> = {};
+    for (const todo of filtered) {
+      if (!map[todo.date]) map[todo.date] = [];
+      map[todo.date].push(todo);
+    }
+    return map;
+  }, [todosByDateRaw, viewScope]);
+
   const goToToday = () => {
     const now = new Date();
     setSelectedDate(now);
     setCalendarCenter(now);
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20 text-onyx-500">
-        Loading todos…
-      </div>
-    );
+  if (!viewScope || loading) {
+    return <LoadingState label="Loading todos…" />;
   }
 
   const dateKey = toDateKey(selectedDate);
   const stats = todoStats(todosByDate[dateKey] ?? []);
 
   return (
-    <div className="space-y-6">
-      {error && (
-        <div className="rounded-lg border border-fawn-600/40 bg-fawn-500/10 px-4 py-3 text-sm text-fawn-300">
-          {error}
-        </div>
-      )}
+    <div className="space-y-5">
+      {error && <Alert>{error}</Alert>}
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold text-onyx-50">
-            {formatDisplayDate(selectedDate)}
-            {isToday(selectedDate) && (
-              <span className="ml-2 text-sm font-normal text-sea-400">(Today)</span>
-            )}
-          </h2>
-          <p className="text-sm text-onyx-400">
-            {stats.total > 0
-              ? `${stats.done}/${stats.total} items completed`
-              : "No todo items for this day"}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={goToToday}
-          className="rounded-lg border border-onyx-700 bg-onyx-800 px-3 py-1.5 text-sm text-onyx-300 hover:border-onyx-600 hover:text-onyx-100"
-        >
-          Jump to today
-        </button>
-      </div>
+      <PageHeader
+        title={formatDisplayDate(selectedDate)}
+        badge={isToday(selectedDate) ? "Today" : undefined}
+        subtitle={
+          stats.total > 0
+            ? `${stats.done}/${stats.total} items completed`
+            : viewScope.isAdmin
+              ? "No todo items for this day"
+              : "No todo items for you on this day"
+        }
+        progress={
+          stats.total > 0
+            ? { done: stats.done, total: stats.total }
+            : undefined
+        }
+        action={
+          <button type="button" onClick={goToToday} className="btn-ghost shrink-0">
+            Jump to today
+          </button>
+        }
+      />
 
-      <TodoCalendar
+      <div className="glass-card p-5">
+        <TodoCalendar
         centerDate={calendarCenter}
         selectedDate={selectedDate}
         onSelectDate={setSelectedDate}
         todosByDate={todosByDate}
       />
+      </div>
 
       <Todos
         date={selectedDate}
         lists={todosByDate[dateKey] ?? []}
+        viewScope={viewScope}
         onToggleItem={toggleItem}
         onDelete={removeTodo}
         onAdd={addTodo}

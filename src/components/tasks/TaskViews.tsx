@@ -5,7 +5,10 @@ import {
   formatDisplayDate,
   formatWeekdayShort,
   getDailyAssignments,
+  getPersonDailyTask,
   getWeekendAssignments,
+  hasRescheduledDailyChores,
+  isOutsideEatingDay,
   isToday,
   isTomorrow,
   personName,
@@ -15,7 +18,16 @@ import {
   completionCountForDateFull,
   totalTaskCountForDate,
 } from "@/lib/tasks";
-import type { CompletionsStore, CustomTask, DailyTaskId, WeekendTaskId } from "@/lib/types";
+import type {
+  CompletionsStore,
+  CustomTask,
+  DailyTaskId,
+  PersonId,
+  ViewScope,
+  WeekendTaskId,
+} from "@/lib/types";
+import { Section } from "@/components/ui/Section";
+import { PERSON_COLORS } from "@/lib/personColors";
 
 interface TaskCardProps {
   title: string;
@@ -36,30 +48,30 @@ export function TaskCard({
     <button
       type="button"
       onClick={onToggle}
-      className={`group w-full rounded-xl border p-4 text-left transition-all ${
+      className={`group glass-card-hover w-full rounded-2xl border p-4 text-left transition-all active:scale-[0.99] ${
         completed
-          ? "border-sea-700/50 bg-sea-900/20 opacity-75"
+          ? "border-sea-700/40 bg-sea-900/15 opacity-80"
           : highlight === "today"
-            ? "border-sea-500/50 bg-sea-500/5 hover:border-sea-400"
+            ? "border-sea-500/40 bg-sea-500/8 shadow-sm shadow-sea-500/5"
             : highlight === "tomorrow"
-              ? "border-fawn-500/40 bg-fawn-500/5 hover:border-fawn-400"
-              : "border-onyx-700 bg-onyx-900 hover:border-onyx-600"
+              ? "border-fawn-500/35 bg-fawn-500/5"
+              : "border-onyx-800/80 bg-onyx-900/40 hover:border-onyx-600"
       }`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p
-            className={`font-medium ${completed ? "text-onyx-400 line-through" : "text-onyx-100"}`}
+            className={`font-medium leading-snug ${completed ? "text-onyx-500 line-through" : "text-onyx-100"}`}
           >
             {title}
           </p>
-          <p className="mt-1 text-sm text-pine-400">{assignee}</p>
+          <p className="mt-1.5 text-xs text-pine-400">{assignee}</p>
         </div>
         <div
-          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 transition-all ${
             completed
               ? "border-sea-500 bg-sea-500 text-onyx-950"
-              : "border-onyx-600 group-hover:border-sea-500"
+              : "border-onyx-600 group-hover:border-sea-500 group-hover:bg-sea-500/10"
           }`}
         >
           {completed && (
@@ -76,82 +88,146 @@ export function TaskCard({
 interface DailyTasksProps {
   date: Date;
   completions: CompletionsStore;
+  outsideEatingDays: ReadonlySet<string>;
+  viewScope: ViewScope;
   onToggle: (dateKey: string, taskId: DailyTaskId) => void;
+  onToggleOutsideEating: (dateKey: string) => void;
 }
 
-export function DailyTasks({ date, completions, onToggle }: DailyTasksProps) {
+export function DailyTasks({
+  date,
+  completions,
+  outsideEatingDays,
+  viewScope,
+  onToggle,
+  onToggleOutsideEating,
+}: DailyTasksProps) {
   const dateKey = toDateKey(date);
-  const assignments = getDailyAssignments(date);
+  const assignments = getDailyAssignments(date, outsideEatingDays).filter(
+    (a) => viewScope.isAdmin || a.personId === viewScope.personId,
+  );
   const dayCompletions = completions[dateKey]?.daily ?? {};
   const highlight = isToday(date) ? "today" : isTomorrow(date) ? "tomorrow" : undefined;
+  const ateOutside = isOutsideEatingDay(date, outsideEatingDays);
+  const rescheduled = hasRescheduledDailyChores(date, outsideEatingDays);
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold uppercase tracking-wider text-onyx-400">
-          Daily chores
-        </h3>
-        {highlight && (
-          <span
-            className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-              highlight === "today"
-                ? "bg-sea-500/20 text-sea-400"
-                : "bg-fawn-500/20 text-fawn-400"
-            }`}
-          >
-            {highlight === "today" ? "Today" : "Tomorrow"}
-          </span>
-        )}
-      </div>
-      <div className="grid gap-2 sm:grid-cols-2">
-        {assignments.map(({ taskId, personId }) => {
-          const task = DAILY_TASKS.find((t) => t.id === taskId)!;
-          return (
-            <TaskCard
-              key={taskId}
-              title={task.name}
-              assignee={personName(personId)}
-              completed={!!dayCompletions[taskId]}
-              onToggle={() => onToggle(dateKey, taskId)}
-              highlight={highlight}
-            />
-          );
-        })}
-      </div>
-    </div>
+    <Section
+      title={viewScope.isAdmin ? "Daily chores" : "Your daily chore"}
+      action={
+        <div className="flex flex-wrap items-center gap-2">
+          {highlight && (
+            <span
+              className={`chip ${
+                highlight === "today"
+                  ? "bg-sea-500/20 text-sea-400 ring-1 ring-sea-500/30"
+                  : "bg-fawn-500/20 text-fawn-400 ring-1 ring-fawn-500/30"
+              }`}
+            >
+              {highlight === "today" ? "Today" : "Tomorrow"}
+            </span>
+          )}
+          {viewScope.isAdmin && (
+            <button
+              type="button"
+              onClick={() => onToggleOutsideEating(dateKey)}
+              className={`chip transition-colors ${
+                ateOutside
+                  ? "bg-fawn-500/20 text-fawn-300 ring-1 ring-fawn-500/40"
+                  : "border border-onyx-700 bg-onyx-800 text-onyx-400 hover:text-onyx-200"
+              }`}
+            >
+              {ateOutside ? "Ate outside ✓" : "Mark ate outside"}
+            </button>
+          )}
+        </div>
+      }
+    >
+
+      {ateOutside && (
+        <p className="rounded-lg border border-fawn-500/30 bg-fawn-500/10 px-3 py-2 text-sm text-fawn-300">
+          {viewScope.isAdmin
+            ? "No cooking today — daily chores move to tomorrow."
+            : "Ate outside today — your chore moves to tomorrow."}
+        </p>
+      )}
+
+      {rescheduled && !ateOutside && (
+        <p className="rounded-lg border border-sea-700/40 bg-sea-900/20 px-3 py-2 text-sm text-sea-300">
+          Includes chores rescheduled from a day you ate outside.
+        </p>
+      )}
+
+      {assignments.length > 0 ? (
+        <div className="grid gap-2 sm:grid-cols-2">
+          {assignments.map(({ taskId, personId }) => {
+            const task = DAILY_TASKS.find((t) => t.id === taskId)!;
+            return (
+              <TaskCard
+                key={taskId}
+                title={task.name}
+                assignee={personName(personId)}
+                completed={!!dayCompletions[taskId]}
+                onToggle={() => onToggle(dateKey, taskId)}
+                highlight={highlight}
+              />
+            );
+          })}
+        </div>
+      ) : (
+        !ateOutside && viewScope.isAdmin && (
+          <p className="text-sm text-onyx-500">No daily chores for this day.</p>
+        )
+      )}
+    </Section>
   );
 }
 
 interface WeekendTasksProps {
   date: Date;
   completions: CompletionsStore;
+  viewScope: ViewScope;
   onToggle: (dateKey: string, taskId: WeekendTaskId) => void;
 }
 
-export function WeekendTasks({ date, completions, onToggle }: WeekendTasksProps) {
+export function WeekendTasks({
+  date,
+  completions,
+  viewScope,
+  onToggle,
+}: WeekendTasksProps) {
   const dateKey = toDateKey(date);
-  const assignments = getWeekendAssignments(date);
+  const assignments = getWeekendAssignments(date).filter(
+    ({ personIds }) => viewScope.isAdmin || personIds.includes(viewScope.personId),
+  );
   const dayCompletions = completions[dateKey]?.weekend ?? {};
   const highlight = isToday(date) ? "today" : isTomorrow(date) ? "tomorrow" : undefined;
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold uppercase tracking-wider text-onyx-400">
-          Extra weekend cleaning
-        </h3>
-        {highlight && (
+    <Section
+      title={viewScope.isAdmin ? "Weekend cleaning" : "Your weekend cleaning"}
+      subtitle={
+        viewScope.isAdmin
+          ? "Kitchen alternates between Bijo & Adithyan, then Don & Suraj"
+          : "Kitchen cleaning rotates between pairs each weekend"
+      }
+      action={
+        highlight ? (
           <span
-            className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+            className={`chip ${
               highlight === "today"
-                ? "bg-sea-500/20 text-sea-400"
-                : "bg-fawn-500/20 text-fawn-400"
+                ? "bg-sea-500/20 text-sea-400 ring-1 ring-sea-500/30"
+                : "bg-fawn-500/20 text-fawn-400 ring-1 ring-fawn-500/30"
             }`}
           >
             {highlight === "today" ? "Today" : "Tomorrow"}
           </span>
-        )}
-      </div>
+        ) : undefined
+      }
+    >
+      {assignments.length === 0 ? (
+        <p className="text-sm text-onyx-500">No weekend cleaning assigned to you.</p>
+      ) : (
       <div className="grid gap-2">
         {assignments.map(({ taskId, personIds }) => {
           const names = personIds.map(personName).join(" & ");
@@ -172,7 +248,8 @@ export function WeekendTasks({ date, completions, onToggle }: WeekendTasksProps)
           );
         })}
       </div>
-    </div>
+      )}
+    </Section>
   );
 }
 
@@ -182,6 +259,8 @@ interface TaskCalendarProps {
   selectedDate: Date;
   completions: CompletionsStore;
   customByDate: Record<string, CustomTask[]>;
+  outsideEatingDays: ReadonlySet<string>;
+  viewScope: ViewScope;
 }
 
 export function TaskCalendar({
@@ -190,6 +269,8 @@ export function TaskCalendar({
   selectedDate,
   completions,
   customByDate,
+  outsideEatingDays,
+  viewScope,
 }: TaskCalendarProps) {
   const dates: Date[] = [];
   const start = new Date(centerDate);
@@ -201,98 +282,129 @@ export function TaskCalendar({
   }
 
   return (
-    <div className="space-y-3">
-      <h3 className="text-sm font-semibold uppercase tracking-wider text-onyx-400">
-        Calendar
-      </h3>
-      <div className="grid grid-cols-7 gap-1.5">
+    <Section title="Week at a glance" subtitle="Tap a day to view tasks">
+      <div className="grid grid-cols-7 gap-2">
         {dates.map((date) => {
           const key = toDateKey(date);
           const selected = toDateKey(selectedDate) === key;
           const today = isToday(date);
-          const dayComp = completions[key];
           const custom = customByDate[key] ?? [];
-          const totalTasks = totalTaskCountForDate(date, custom, []);
+          const totalTasks = totalTaskCountForDate(
+            date,
+            custom,
+            [],
+            outsideEatingDays,
+            viewScope,
+          );
           const doneCount = completionCountForDateFull(
             date,
             completions,
             custom,
             [],
+            outsideEatingDays,
+            viewScope,
           );
           const allDone = totalTasks > 0 && doneCount === totalTasks;
+          const ateOutside = isOutsideEatingDay(date, outsideEatingDays);
+          const pct =
+            totalTasks > 0 ? Math.round((doneCount / totalTasks) * 100) : 0;
 
           return (
             <button
               key={key}
               type="button"
               onClick={() => onSelectDate(date)}
-              className={`flex flex-col items-center rounded-xl border p-2 text-center transition-all ${
+              className={`relative flex flex-col items-center rounded-2xl border p-2.5 text-center transition-all sm:p-3 ${
                 selected
-                  ? "border-sea-500 bg-sea-500/10"
+                  ? "border-sea-500/60 bg-sea-500/15 ring-1 ring-sea-500/30 shadow-lg shadow-sea-500/10"
                   : today
-                    ? "border-fawn-500/50 bg-fawn-500/5"
-                    : "border-onyx-800 bg-onyx-900 hover:border-onyx-700"
+                    ? "border-fawn-500/40 bg-fawn-500/8"
+                    : ateOutside
+                      ? "border-fawn-600/25 bg-fawn-500/5"
+                      : "border-onyx-800/80 bg-onyx-900/30 hover:border-onyx-600 hover:bg-onyx-800/50"
               }`}
             >
-              <span className="text-[10px] uppercase text-onyx-500">
+              <span className="text-[10px] font-medium uppercase text-onyx-500">
                 {formatWeekdayShort(date)}
               </span>
               <span
-                className={`text-sm font-semibold ${today ? "text-fawn-400" : "text-onyx-200"}`}
+                className={`mt-0.5 text-base font-bold ${today ? "text-fawn-400" : selected ? "text-sea-300" : "text-onyx-100"}`}
               >
                 {date.getDate()}
               </span>
-              {allDone ? (
-                <span className="mt-0.5 text-[10px] text-sea-500">✓</span>
+              {ateOutside ? (
+                <span className="mt-1 text-[10px] font-medium text-fawn-500">out</span>
+              ) : totalTasks === 0 ? (
+                <span className="mt-1 text-[10px] text-onyx-600">—</span>
+              ) : allDone ? (
+                <span className="mt-1 text-[10px] font-bold text-sea-500">✓</span>
               ) : (
-                <span className="mt-0.5 text-[10px] text-onyx-500">
+                <span className="mt-1 text-[10px] text-onyx-500">
                   {doneCount}/{totalTasks}
                 </span>
+              )}
+              {totalTasks > 0 && !ateOutside && (
+                <div className="absolute bottom-1.5 left-2 right-2 h-0.5 overflow-hidden rounded-full bg-onyx-800">
+                  <div
+                    className="h-full rounded-full bg-sea-500/70"
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
               )}
             </button>
           );
         })}
       </div>
-      <p className="text-xs text-onyx-500">
-        Tap a day to see who does what. Assignments rotate automatically.
-      </p>
-    </div>
+    </Section>
   );
 }
 
 interface PersonOverviewProps {
   date: Date;
+  outsideEatingDays: ReadonlySet<string>;
+  viewScope: ViewScope;
 }
 
-export function PersonOverview({ date }: PersonOverviewProps) {
-  const assignments = getDailyAssignments(date);
-  const byPerson = new Map(assignments.map((a) => [a.personId, a.taskId]));
+export function PersonOverview({
+  date,
+  outsideEatingDays,
+  viewScope,
+}: PersonOverviewProps) {
+  const ateOutside = isOutsideEatingDay(date, outsideEatingDays);
+  const people = viewScope.isAdmin
+    ? PEOPLE
+    : PEOPLE.filter((p) => p.id === viewScope.personId);
 
   return (
-    <div className="space-y-3">
-      <h3 className="text-sm font-semibold uppercase tracking-wider text-onyx-400">
-        By person — {formatDisplayDate(date)}
-      </h3>
-      <div className="grid gap-2 sm:grid-cols-2">
-        {PEOPLE.map((person) => {
-          const taskId = byPerson.get(person.id);
-          const task = DAILY_TASKS.find((t) => t.id === taskId);
+    <Section
+      title={viewScope.isAdmin ? "Team overview" : "Your chore"}
+      subtitle={formatDisplayDate(date)}
+    >
+      <div className="grid gap-2">
+        {people.map((person) => {
+          const taskId = getPersonDailyTask(person.id, date, outsideEatingDays);
+          const task = taskId ? DAILY_TASKS.find((t) => t.id === taskId) : null;
+          const colors = PERSON_COLORS[person.id as PersonId];
           return (
             <div
               key={person.id}
-              className="flex items-center gap-3 rounded-xl border border-onyx-800 bg-onyx-900/60 px-4 py-3"
+              className={`flex items-center gap-3 rounded-2xl border border-onyx-800/80 bg-gradient-to-r ${colors.gradient} px-4 py-3.5`}
             >
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-pine-800 text-sm font-bold text-pine-200">
+              <div
+                className={`flex h-10 w-10 items-center justify-center rounded-xl text-sm font-bold ring-1 ${colors.bg} ${colors.ring} ${colors.text}`}
+              >
                 {person.name[0]}
               </div>
-              <div>
+              <div className="min-w-0 flex-1">
                 <p className="font-medium text-onyx-100">{person.name}</p>
-                <p className="text-sm text-onyx-400">{task?.shortName ?? "—"}</p>
+                <p className="text-sm text-onyx-400">
+                  {ateOutside ? "Off — ate outside" : (task?.shortName ?? "—")}
+                </p>
               </div>
             </div>
           );
         })}
       </div>
-    </div>
+    </Section>
   );
 }

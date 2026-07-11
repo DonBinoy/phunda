@@ -28,7 +28,17 @@ export async function GET() {
       database: "connected",
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown database error";
+    let message = err instanceof Error ? err.message : "Unknown database error";
+    if (
+      message.includes("ENOTFOUND") &&
+      message.includes("db.") &&
+      message.includes(".supabase.co")
+    ) {
+      message =
+        "Direct Supabase host (db.*.supabase.co) is IPv6-only and does not work on Vercel. " +
+        "In Vercel, set DATABASE_URL to the Transaction pooler string from Supabase → " +
+        "Settings → Database → Connection string (host: aws-0-[region].pooler.supabase.com, port 6543).";
+    }
     console.error("Health check failed:", err);
     return json(
       {

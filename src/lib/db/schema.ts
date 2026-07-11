@@ -1,4 +1,25 @@
 /** Embedded schema — avoids readFileSync issues on Vercel serverless */
+export const OUTSIDE_EATING_TABLE_SQL = `
+CREATE TABLE IF NOT EXISTS outside_eating_days (
+  eat_date DATE PRIMARY KEY,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+`;
+
+export const EXPENSE_TEMPLATES_TABLE_SQL = `
+CREATE TABLE IF NOT EXISTS expense_templates (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(100) NOT NULL,
+  amount NUMERIC(12, 2) NOT NULL CHECK (amount > 0),
+  person_id VARCHAR(20) CHECK (
+    person_id IS NULL OR person_id IN ('don', 'bijo', 'suraj', 'adithyan')
+  ),
+  split_equally BOOLEAN NOT NULL DEFAULT FALSE,
+  sort_order INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+`;
+
 export const SCHEMA_SQL = `
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
@@ -83,4 +104,7 @@ CREATE TABLE IF NOT EXISTS todo_items (
 
 CREATE INDEX IF NOT EXISTS idx_todo_items_list
   ON todo_items (todo_list_id);
+${OUTSIDE_EATING_TABLE_SQL.trim()}
+
+${EXPENSE_TEMPLATES_TABLE_SQL.trim()}
 `;

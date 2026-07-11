@@ -1,7 +1,8 @@
-import { DAILY_TASKS, WEEKEND_TASKS } from "./constants";
+import { DAILY_TASKS } from "./constants";
 import {
   getDailyAssignments,
   getWeekendAssignments,
+  isOutsideEatingDay,
   isWeekend,
   personName,
   toDateKey,
@@ -10,7 +11,9 @@ import type {
   CompletionsStore,
   CustomTask,
   PendingTaskItem,
+  PersonId,
   TodoList,
+  ViewScope,
 } from "./types";
 
 export function customTaskStats(tasks: CustomTask[]) {
@@ -48,17 +51,40 @@ export function todoStats(todos: TodoList[]) {
   return { total, done };
 }
 
+function personWeekendTaskCount(date: Date, personId: PersonId): number {
+  if (!isWeekend(date)) return 0;
+  return getWeekendAssignments(date).filter(({ personIds }) =>
+    personIds.includes(personId),
+  ).length;
+}
+
+function personDailyTaskCount(
+  date: Date,
+  personId: PersonId,
+  outsideEatingDays: ReadonlySet<string>,
+): number {
+  if (isOutsideEatingDay(date, outsideEatingDays)) return 0;
+  return getDailyAssignments(date, outsideEatingDays).some(
+    (a) => a.personId === personId,
+  )
+    ? 1
+    : 0;
+}
+
 export function getPendingTasks(
   date: Date,
   completions: CompletionsStore,
   customTasks: CustomTask[],
   todos: TodoList[],
+  outsideEatingDays: ReadonlySet<string> = new Set(),
+  scope: ViewScope | null = null,
 ): PendingTaskItem[] {
   const dateKey = toDateKey(date);
   const pending: PendingTaskItem[] = [];
   const dayComp = completions[dateKey];
 
-  for (const { taskId, personId } of getDailyAssignments(date)) {
+  for (const { taskId, personId } of getDailyAssignments(date, outsideEatingDays)) {
+    if (scope && !scope.isAdmin && personId !== scope.personId) continue;
     if (!dayComp?.daily?.[taskId]) {
       const task = DAILY_TASKS.find((t) => t.id === taskId)!;
       pending.push({
@@ -78,6 +104,9 @@ export function getPendingTasks(
       room: "Room Cleaning",
     };
     for (const { taskId, personIds } of weekendAssignments) {
+      if (scope && !scope.isAdmin && !personIds.includes(scope.personId)) {
+        continue;
+      }
       if (!dayComp?.weekend?.[taskId]) {
         pending.push({
           id: `weekend-${taskId}`,
@@ -116,15 +145,27 @@ export function totalTaskCountForDate(
   date: Date,
   customTasks: CustomTask[],
   todos: TodoList[],
+  outsideEatingDays: ReadonlySet<string> = new Set(),
+  scope: ViewScope | null = null,
 ): number {
   const dateKey = toDateKey(date);
-  const base =
-    4 + (isWeekend(date) ? 3 : 0);
+
+  let daily: number;
+  let weekend: number;
+
+  if (scope && !scope.isAdmin) {
+    daily = personDailyTaskCount(date, scope.personId, outsideEatingDays);
+    weekend = personWeekendTaskCount(date, scope.personId);
+  } else {
+    daily = isOutsideEatingDay(date, outsideEatingDays) ? 0 : 4;
+    weekend = isWeekend(date) ? 3 : 0;
+  }
+
   const custom = customTasks.filter((t) => t.date === dateKey).length;
   const todoItems = todos
     .filter((t) => t.date === dateKey)
     .reduce((sum, t) => sum + t.items.length, 0);
-  return base + custom + todoItems;
+  return daily + weekend + custom + todoItems;
 }
 
 export function completionCountForDateFull(
@@ -132,13 +173,28 @@ export function completionCountForDateFull(
   completions: CompletionsStore,
   customTasks: CustomTask[],
   todos: TodoList[],
+  outsideEatingDays: ReadonlySet<string> = new Set(),
+  scope: ViewScope | null = null,
 ): number {
   const dateKey = toDateKey(date);
   const dayComp = completions[dateKey];
-  const daily = Object.values(dayComp?.daily ?? {}).filter(Boolean).length;
-  const weekend = isWeekend(date)
-    ? Object.values(dayComp?.weekend ?? {}).filter(Boolean).length
-    : 0;
+
+  let daily = 0;
+  for (const { taskId, personId } of getDailyAssignments(date, outsideEatingDays)) {
+    if (scope && !scope.isAdmin && personId !== scope.personId) continue;
+    if (dayComp?.daily?.[taskId]) daily++;
+  }
+
+  let weekend = 0;
+  if (isWeekend(date)) {
+    for (const { taskId, personIds } of getWeekendAssignments(date)) {
+      if (scope && !scope.isAdmin && !personIds.includes(scope.personId)) {
+        continue;
+      }
+      if (dayComp?.weekend?.[taskId]) weekend++;
+    }
+  }
+
   const custom = customTasks.filter(
     (t) => t.date === dateKey && t.completed,
   ).length;

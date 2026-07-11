@@ -2,6 +2,7 @@ import type {
   CompletionsStore,
   CustomTask,
   ExpenseEntry,
+  ExpenseTemplate,
   PersonId,
   PersonTotalsMap,
   TodoList,
@@ -51,6 +52,27 @@ export async function toggleCompletion(body: {
   });
 }
 
+export async function fetchOutsideEatingDays(
+  from?: string,
+  to?: string,
+): Promise<string[]> {
+  const params = new URLSearchParams();
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+  const qs = params.toString();
+  return request<string[]>(`/api/outside-eating${qs ? `?${qs}` : ""}`);
+}
+
+export async function toggleOutsideEating(body: {
+  date: string;
+  active?: boolean;
+}): Promise<{ date: string; active: boolean }> {
+  return request("/api/outside-eating/toggle", {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+}
+
 export interface ExpensesResponse {
   entries: ExpenseEntry[];
   totals: {
@@ -77,8 +99,52 @@ export async function createExpense(body: {
   });
 }
 
+export async function createSplitExpense(body: {
+  amount: number;
+  comment: string;
+  personIds?: PersonId[];
+}): Promise<ExpenseEntry[]> {
+  return request<ExpenseEntry[]>("/api/expenses/split", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
 export async function deleteExpense(id: string): Promise<void> {
   await request<void>(`/api/expenses/${id}`, { method: "DELETE" });
+}
+
+export async function fetchExpenseTemplates(): Promise<ExpenseTemplate[]> {
+  return request<ExpenseTemplate[]>("/api/expense-templates");
+}
+
+export async function createExpenseTemplate(body: {
+  name: string;
+  amount: number;
+  personId?: PersonId;
+  splitEqually?: boolean;
+}): Promise<ExpenseTemplate> {
+  return request<ExpenseTemplate>("/api/expense-templates", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function deleteExpenseTemplate(id: string): Promise<void> {
+  await request<void>(`/api/expense-templates/${id}`, { method: "DELETE" });
+}
+
+export async function applyExpenseTemplate(
+  id: string,
+  body?: { personId?: PersonId },
+): Promise<ExpenseEntry | ExpenseEntry[]> {
+  return request<ExpenseEntry | ExpenseEntry[]>(
+    `/api/expense-templates/${id}/apply`,
+    {
+      method: "POST",
+      body: JSON.stringify(body ?? {}),
+    },
+  );
 }
 
 export async function fetchCustomTasks(

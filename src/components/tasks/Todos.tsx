@@ -3,11 +3,14 @@
 import { useState } from "react";
 import { PEOPLE } from "@/lib/constants";
 import { isToday, isTomorrow, personName, toDateKey } from "@/lib/rotation";
-import type { PersonId, TodoList } from "@/lib/types";
+import { Section } from "@/components/ui/Section";
+import type { PersonId, TodoList, ViewScope } from "@/lib/types";
+import { lockedPersonId } from "@/lib/personalize";
 
 interface TodosProps {
   date: Date;
   lists: TodoList[];
+  viewScope: ViewScope;
   onToggleItem: (listId: string, itemId: string) => void;
   onDelete: (id: string) => void;
   onAdd: (body: {
@@ -18,10 +21,19 @@ interface TodosProps {
   }) => Promise<unknown>;
 }
 
-export function Todos({ date, lists, onToggleItem, onDelete, onAdd }: TodosProps) {
+export function Todos({
+  date,
+  lists,
+  viewScope,
+  onToggleItem,
+  onDelete,
+  onAdd,
+}: TodosProps) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
-  const [personId, setPersonId] = useState<PersonId | "">("");
+  const [personId, setPersonId] = useState<PersonId | "">(
+    () => lockedPersonId(viewScope) ?? "",
+  );
   const [itemsText, setItemsText] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -36,8 +48,9 @@ export function Todos({ date, lists, onToggleItem, onDelete, onAdd }: TodosProps
       .split("\n")
       .map((line) => line.trim())
       .filter(Boolean);
+    const assignee = lockedPersonId(viewScope) ?? personId;
 
-    if (!title.trim() || !personId || items.length === 0) {
+    if (!title.trim() || !assignee || items.length === 0) {
       setFormError("Enter a title, assign someone, and at least one item");
       return;
     }
@@ -47,12 +60,12 @@ export function Todos({ date, lists, onToggleItem, onDelete, onAdd }: TodosProps
     try {
       await onAdd({
         title: title.trim(),
-        personId,
+        personId: assignee,
         date: dateKey,
         items,
       });
       setTitle("");
-      setPersonId("");
+      if (viewScope.isAdmin) setPersonId("");
       setItemsText("");
       setOpen(false);
     } catch (err) {
@@ -63,19 +76,18 @@ export function Todos({ date, lists, onToggleItem, onDelete, onAdd }: TodosProps
   };
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <h3 className="text-sm font-semibold uppercase tracking-wider text-onyx-400">
-          Todo lists
-        </h3>
+    <Section
+      title={viewScope.isAdmin ? "Todo lists" : "Your todo lists"}
+      action={
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className="rounded-lg border border-pine-700/50 bg-pine-900/30 px-3 py-1.5 text-xs font-medium text-pine-300 hover:border-pine-600"
+          className="chip border border-pine-700/50 bg-pine-900/40 text-pine-300 hover:bg-pine-900/60"
         >
           {open ? "Cancel" : "+ New todo"}
         </button>
-      </div>
+      }
+    >
 
       {open && (
         <form
@@ -95,22 +107,28 @@ export function Todos({ date, lists, onToggleItem, onDelete, onAdd }: TodosProps
           </div>
           <div>
             <label className="mb-2 block text-xs text-onyx-400">Assign to</label>
-            <div className="grid grid-cols-4 gap-2">
-              {PEOPLE.map((person) => (
-                <button
-                  key={person.id}
-                  type="button"
-                  onClick={() => setPersonId(person.id)}
-                  className={`rounded-lg border py-2 text-sm font-medium transition-colors ${
-                    personId === person.id
-                      ? "border-sea-500/50 bg-sea-500/10 text-sea-400"
-                      : "border-onyx-700 text-onyx-400 hover:border-onyx-600"
-                  }`}
-                >
-                  {person.name}
-                </button>
-              ))}
-            </div>
+            {viewScope.isAdmin ? (
+              <div className="grid grid-cols-4 gap-2">
+                {PEOPLE.map((person) => (
+                  <button
+                    key={person.id}
+                    type="button"
+                    onClick={() => setPersonId(person.id)}
+                    className={`rounded-lg border py-2 text-sm font-medium transition-colors ${
+                      personId === person.id
+                        ? "border-sea-500/50 bg-sea-500/10 text-sea-400"
+                        : "border-onyx-700 text-onyx-400 hover:border-onyx-600"
+                    }`}
+                  >
+                    {person.name}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="rounded-lg border border-onyx-700 bg-onyx-950 px-3 py-2 text-sm text-pine-400">
+                {personName(viewScope.personId)}
+              </p>
+            )}
           </div>
           <div>
             <label className="mb-1 block text-xs text-onyx-400">
@@ -127,7 +145,7 @@ export function Todos({ date, lists, onToggleItem, onDelete, onAdd }: TodosProps
           <button
             type="submit"
             disabled={submitting}
-            className="w-full rounded-lg bg-sea-500 py-2 text-sm font-semibold text-onyx-950 hover:bg-sea-400 disabled:opacity-50"
+            className="btn-primary w-full disabled:opacity-50"
           >
             {submitting ? "Creating…" : "Create todo list"}
           </button>
@@ -136,7 +154,9 @@ export function Todos({ date, lists, onToggleItem, onDelete, onAdd }: TodosProps
 
       {dayLists.length === 0 ? (
         <p className="rounded-xl border border-dashed border-onyx-800 py-6 text-center text-sm text-onyx-500">
-          No todo lists for this day.
+          {viewScope.isAdmin
+            ? "No todo lists for this day."
+            : "No todo lists for you on this day."}
         </p>
       ) : (
         <div className="space-y-3">
@@ -213,6 +233,6 @@ export function Todos({ date, lists, onToggleItem, onDelete, onAdd }: TodosProps
           })}
         </div>
       )}
-    </div>
+    </Section>
   );
 }

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   createExpense,
+  createSplitExpense,
   deleteExpense,
   fetchExpenses,
   type ExpensesResponse,
@@ -79,6 +80,29 @@ export function useExpenses() {
     });
   };
 
+  const addSplitExpense = async (body: {
+    amount: number;
+    comment: string;
+    personIds?: PersonId[];
+  }) => {
+    const created = await createSplitExpense(body);
+    setEntries((prev) => {
+      const next = [...created, ...prev];
+      setTotals(recomputeTotals(next));
+      return next;
+    });
+    return created;
+  };
+
+  const mergeCreated = (created: ExpenseEntry | ExpenseEntry[]) => {
+    const batch = Array.isArray(created) ? created : [created];
+    setEntries((prev) => {
+      const next = [...batch, ...prev];
+      setTotals(recomputeTotals(next));
+      return next;
+    });
+  };
+
   const removeEntry = async (id: string) => {
     const removed = entries.find((e) => e.id === id);
     if (!removed) return;
@@ -98,5 +122,15 @@ export function useExpenses() {
     }
   };
 
-  return { entries, totals, loading, error, addEntry, removeEntry, reload: load };
+  return {
+    entries,
+    totals,
+    loading,
+    error,
+    addEntry,
+    addSplitExpense,
+    mergeCreated,
+    removeEntry,
+    reload: load,
+  };
 }

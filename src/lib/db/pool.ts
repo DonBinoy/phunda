@@ -13,6 +13,13 @@ export function getDatabaseUrl(): string | undefined {
   );
 }
 
+export function isPoolerUrl(connectionString: string): boolean {
+  return (
+    connectionString.includes("pooler.supabase.com") ||
+    connectionString.includes("pgbouncer=true")
+  );
+}
+
 function resolveSsl(connectionString: string): false | { rejectUnauthorized: boolean } {
   if (connectionString.includes("sslmode=disable")) return false;
   if (connectionString.includes("localhost") || connectionString.includes("127.0.0.1")) {
@@ -26,12 +33,16 @@ function createPool(): pg.Pool {
     getDatabaseUrl() ??
     "postgresql://postgres:don123@localhost:5432/phunda?sslmode=disable";
 
+  const pooler = isPoolerUrl(connectionString);
+
   return new Pool({
     connectionString,
     ssl: resolveSsl(connectionString),
     max: process.env.VERCEL ? 1 : 5,
-    idleTimeoutMillis: 10_000,
+    idleTimeoutMillis: process.env.VERCEL ? 0 : 10_000,
     connectionTimeoutMillis: 10_000,
+    allowExitOnIdle: !!process.env.VERCEL,
+    ...(pooler ? { prepareThreshold: 0 } : {}),
   });
 }
 

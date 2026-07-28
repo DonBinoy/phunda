@@ -8,12 +8,14 @@ import {
   ROTATION_EPOCH,
   TASK_ROTATION,
   WEEKEND_KITCHEN_OFFSET,
+  WEEKEND_TASKS,
 } from "./constants";
 import type {
   DailyAssignment,
   DailyTaskId,
   PersonId,
   WeekendAssignment,
+  WeekendTaskId,
 } from "./types";
 
 const INDEX_TASK: DailyTaskId[] = ["paathram", "veg", "kari", "rice"];
@@ -221,4 +223,8 @@ export function personName(id: PersonId): string {
 
 export function taskName(id: DailyTaskId): string {
   return DAILY_TASKS.find((t) => t.id === id)?.name ?? id;
+}
+
+export function weekendTaskName(id: WeekendTaskId): string {
+  return WEEKEND_TASKS.find((t) => t.id === id)?.name ?? id;
 }

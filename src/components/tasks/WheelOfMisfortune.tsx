@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { getWeekendAssignments, personName, taskName } from "@/lib/rotation";
+import { getWeekendAssignments, personName, weekendTaskName } from "@/lib/rotation";
 
 interface WheelOfMisfortuneProps {
   date: Date;
@@ -71,7 +71,7 @@ export function WheelOfMisfortune({ date }: WheelOfMisfortuneProps) {
               {assignment.taskId === "room" && "🧹"}
             </span>
             <span className="font-semibold text-onyx-100">
-              {taskName(assignment.taskId)}
+              {weekendTaskName(assignment.taskId)}
             </span>
           </div>
           <div className="flex flex-col items-end gap-1">

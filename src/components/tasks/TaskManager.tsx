@@ -21,7 +21,10 @@ import {
   toDateKey,
 } from "@/lib/rotation";
 import { CustomTasks } from "./CustomTasks";
+import { OutsideEatingCalendar } from "./OutsideEatingCalendar";
 import { PendingTasksAlert } from "./PendingTasksAlert";
+import { GauntletWidget } from "./GauntletWidget";
+import { WheelOfMisfortune } from "./WheelOfMisfortune";
 import {
   DailyTasks,
   PersonOverview,
@@ -110,6 +113,8 @@ export function TaskManager() {
         outsideEatingDays={outsideEatingDays}
         viewScope={viewScope}
       />
+      
+      <GauntletWidget />
 
       <PageHeader
         title={formatDisplayDate(selectedDate)}
@@ -137,6 +142,18 @@ export function TaskManager() {
         viewScope={viewScope}
       />
 
+      {isAdmin && (
+        <OutsideEatingCalendar
+          outsideEatingDays={outsideEatingDays}
+          onToggle={toggleOutsideEating}
+          selectedDate={selectedDate}
+          onSelectDate={(date) => {
+            setSelectedDate(date);
+            setCalendarCenter(date);
+          }}
+        />
+      )}
+
       <div
         className={`grid gap-5 ${isAdmin ? "lg:grid-cols-2" : ""}`}
       >
@@ -150,12 +167,15 @@ export function TaskManager() {
             onToggleOutsideEating={toggleOutsideEating}
           />
           {weekend && (
-            <WeekendTasks
-              date={selectedDate}
-              completions={completions}
-              viewScope={viewScope}
-              onToggle={toggleWeekend}
-            />
+            <div className="space-y-5">
+              <WheelOfMisfortune date={selectedDate} />
+              <WeekendTasks
+                date={selectedDate}
+                completions={completions}
+                viewScope={viewScope}
+                onToggle={toggleWeekend}
+              />
+            </div>
           )}
         </div>
 
@@ -181,9 +201,9 @@ export function TaskManager() {
         <div className="glass-card border-pine-800/30 bg-gradient-to-br from-pine-900/20 to-transparent p-5">
           <h4 className="text-sm font-medium text-pine-300">How it works</h4>
           <p className="mt-1.5 text-xs leading-relaxed text-onyx-400">
-            Daily chores rotate automatically. Mark &quot;ate outside&quot; to
-            move cooking chores to tomorrow. Weekend kitchen alternates between
-            Don &amp; Suraj and Adithyan &amp; Bijo.
+            Daily chores rotate automatically. Use the ate-outside calendar to
+            mark any day — cooking chores move to the next day. Weekend kitchen
+            alternates between Don &amp; Suraj and Adithyan &amp; Bijo.
           </p>
         </div>
       )}

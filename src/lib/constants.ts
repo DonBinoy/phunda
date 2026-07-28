@@ -34,7 +34,8 @@ export const TASK_ROTATION: number[] = [2, 0, 3, 1];
 export const TASK_IDS = DAILY_TASKS.map((t) => t.id);
 export const PERSON_IDS = PEOPLE.map((p) => p.id);
 
-export const ROTATION_EPOCH = "2026-07-06";
+/** Shifted +2 so Tue Jul 28 2026 matches prior Thursday (baseline) assignments */
+export const ROTATION_EPOCH = "2026-07-08";
 
 /** Kitchen cleaning alternates between these pairs each weekend */
 export const KITCHEN_PAIR_A: readonly PersonId[] = ["don", "suraj"];

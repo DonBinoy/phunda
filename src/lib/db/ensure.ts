@@ -1,7 +1,10 @@
 import pg from "pg";
 import {
+  CHORE_DEFINITIONS_TABLE_SQL,
   EXPENSE_TEMPLATES_TABLE_SQL,
+  HOUSEHOLD_SEED_SQL,
   OUTSIDE_EATING_TABLE_SQL,
+  PEOPLE_TABLE_SQL,
   SCHEMA_SQL,
 } from "./schema";
 import { getDatabaseUrl, isPoolerUrl, pool } from "./pool";
@@ -78,6 +81,28 @@ async function ensureMigrations() {
   if (!(await tableExists("expense_templates"))) {
     await pool.query(EXPENSE_TEMPLATES_TABLE_SQL);
   }
+
+  if (!(await tableExists("people"))) {
+    await pool.query(PEOPLE_TABLE_SQL);
+    await pool.query(HOUSEHOLD_SEED_SQL);
+  }
+
+  if (!(await tableExists("chore_definitions"))) {
+    await pool.query(CHORE_DEFINITIONS_TABLE_SQL);
+    await pool.query(HOUSEHOLD_SEED_SQL);
+  }
+
+  // Remove restrictive person_id check constraints if they exist
+  await pool.query(`
+    ALTER TABLE custom_tasks DROP CONSTRAINT IF EXISTS custom_tasks_person_id_check;
+    ALTER TABLE todo_lists DROP CONSTRAINT IF EXISTS todo_lists_person_id_check;
+    ALTER TABLE expense_entries DROP CONSTRAINT IF EXISTS expense_entries_person_id_check;
+    ALTER TABLE expense_templates DROP CONSTRAINT IF EXISTS expense_templates_person_id_check;
+    ALTER TABLE custom_tasks ALTER COLUMN person_id TYPE VARCHAR(30);
+    ALTER TABLE todo_lists ALTER COLUMN person_id TYPE VARCHAR(30);
+    ALTER TABLE expense_entries ALTER COLUMN person_id TYPE VARCHAR(30);
+    ALTER TABLE expense_templates ALTER COLUMN person_id TYPE VARCHAR(30);
+  `);
 }
 
 export async function ensureDb() {

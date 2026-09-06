@@ -2,13 +2,13 @@ import { z } from "zod";
 import { pool } from "@/lib/db/pool";
 import { formatPgDate } from "@/lib/server/dates";
 import { AppError } from "@/lib/server/errors";
+import { parsePersonId } from "@/lib/services/validatePerson";
 
-const PERSON_IDS = ["don", "bijo", "suraj", "adithyan"] as const;
 const dateKeySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
 const createSchema = z.object({
   title: z.string().trim().min(1).max(200),
-  personId: z.enum(PERSON_IDS),
+  personId: z.string().trim().min(1).max(30),
   date: dateKeySchema,
   items: z.array(z.string().trim().min(1).max(200)).min(1).max(50),
 });
@@ -47,7 +47,13 @@ function mapItem(row: {
   };
 }
 
+import { isMockDb } from "@/lib/server/isMockDb";
+import { mockStore } from "@/lib/server/mockStore";
+
 export async function getTodos(from?: string, to?: string) {
+  if (isMockDb()) {
+    return mockStore.getTodos(from, to);
+  }
   let listQuery = `
     SELECT id, title, person_id, task_date, created_at
     FROM todo_lists
@@ -95,6 +101,17 @@ export async function getTodos(from?: string, to?: string) {
 
 export async function createTodo(body: unknown) {
   const data = createSchema.parse(body);
+  const personId = await parsePersonId(data.personId);
+
+  if (isMockDb()) {
+    return mockStore.createTodo({
+      title: data.title,
+      personId,
+      date: data.date,
+      items: data.items,
+    });
+  }
+
   const client = await pool.connect();
 
   try {
@@ -104,7 +121,7 @@ export async function createTodo(body: unknown) {
       `INSERT INTO todo_lists (title, person_id, task_date)
        VALUES ($1, $2, $3::date)
        RETURNING id, title, person_id, task_date, created_at`,
-      [data.title, data.personId, data.date],
+      [data.title, personId, data.date],
     );
 
     const list = mapList(listRows[0]);
@@ -136,6 +153,10 @@ export async function toggleTodoItem(id: string, body: unknown) {
     .object({ completed: z.boolean().optional() })
     .parse(body ?? {}).completed;
 
+  if (isMockDb()) {
+    return mockStore.toggleTodoItem(parsedId, completed);
+  }
+
   const existing = await pool.query<{ completed: boolean }>(
     `SELECT completed FROM todo_items WHERE id = $1`,
     [parsedId],
@@ -160,6 +181,10 @@ export async function toggleTodoItem(id: string, body: unknown) {
 
 export async function deleteTodo(id: string) {
   const parsedId = z.string().uuid().parse(id);
+  if (isMockDb()) {
+    mockStore.deleteTodo(parsedId);
+    return;
+  }
   const result = await pool.query(
     `DELETE FROM todo_lists WHERE id = $1 RETURNING id`,
     [parsedId],

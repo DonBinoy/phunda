@@ -4,6 +4,8 @@ import { ensureDb } from "@/lib/db/ensure";
 import { getDatabaseUrl } from "@/lib/db/pool";
 import { AppError } from "./errors";
 
+import { isMockDb } from "./isMockDb";
+
 export function handleError(err: unknown) {
   if (err instanceof AppError) {
     return NextResponse.json({ error: err.message }, { status: err.statusCode });
@@ -15,7 +17,7 @@ export function handleError(err: unknown) {
   const message = err instanceof Error ? err.message : "Unknown error";
   console.error("API error:", err);
 
-  if (!getDatabaseUrl()) {
+  if (!isMockDb() && !getDatabaseUrl()) {
     return NextResponse.json(
       { error: "DATABASE_URL is not configured on the server" },
       { status: 500 },
@@ -32,6 +34,9 @@ export function handleError(err: unknown) {
 }
 
 export async function withDb<T>(fn: () => Promise<T>): Promise<T> {
+  if (isMockDb()) {
+    return fn();
+  }
   if (!getDatabaseUrl()) {
     throw new AppError(500, "DATABASE_URL is not configured");
   }

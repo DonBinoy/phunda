@@ -1,4 +1,4 @@
-export type PersonId = "don" | "bijo" | "suraj" | "adithyan";
+export type PersonId = string;
 
 export type SessionRole = "admin" | "person";
 
@@ -14,13 +14,9 @@ export function viewScopeFromSession(session: AppSession): ViewScope {
     : { isAdmin: false, personId: session.personId };
 }
 
-export type DailyTaskId =
-  | "paathram"
-  | "veg"
-  | "kari"
-  | "rice";
+export type DailyTaskId = string;
 
-export type WeekendTaskId = "kitchen" | "bathroom" | "room";
+export type WeekendTaskId = string;
 
 export interface Person {
   id: PersonId;

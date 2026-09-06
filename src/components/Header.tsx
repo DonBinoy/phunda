@@ -1,19 +1,20 @@
 "use client";
 
 import Image from "next/image";
-import { PEOPLE } from "@/lib/constants";
-import { PERSON_COLORS } from "@/lib/personColors";
+import { useHouseholdConfig } from "@/context/HouseholdConfigContext";
+import { getPersonColors } from "@/lib/personColors";
 import { usePersonSession } from "@/context/PersonSessionContext";
 
 export function Header() {
-  const { isAdmin, personId, logout } = usePersonSession();
+  const { isAdmin, personId, logout, loginAsAdmin } = usePersonSession();
+  const { people, personIds } = useHouseholdConfig();
 
   const displayName = isAdmin
     ? "Admin"
-    : PEOPLE.find((p) => p.id === personId)?.name ?? "";
+    : people.find((p) => p.id === personId)?.name ?? "";
 
   const personColor =
-    !isAdmin && personId ? PERSON_COLORS[personId] : null;
+    !isAdmin && personId ? getPersonColors(personId, personIds) : null;
 
   return (
     <header className="sticky top-0 z-50 border-b border-onyx-800/80 bg-onyx-950/70 backdrop-blur-xl">
@@ -39,6 +40,18 @@ export function Header() {
         </div>
 
         <div className="flex items-center gap-2">
+          {!isAdmin && (
+            <button
+              type="button"
+              onClick={loginAsAdmin}
+              className="flex items-center gap-1.5 rounded-full border border-fawn-500/40 bg-fawn-500/15 px-3 py-1.5 text-xs font-semibold text-fawn-300 transition hover:bg-fawn-500/25 hover:text-fawn-200"
+              title="Switch to Admin to add people and chores"
+            >
+              <span>👑</span>
+              <span>Switch to Admin</span>
+            </button>
+          )}
+
           <div
             className={`hidden items-center gap-2 rounded-full px-3 py-1.5 text-xs sm:flex ${
               isAdmin
@@ -47,7 +60,7 @@ export function Header() {
             }`}
           >
             <span className="h-1.5 w-1.5 rounded-full bg-sea-500 animate-pulse" />
-            {isAdmin ? "Household view" : `${displayName}'s view`}
+            {isAdmin ? "Household view (Admin)" : `${displayName}'s view`}
           </div>
           <button
             type="button"
@@ -58,7 +71,7 @@ export function Header() {
               {isAdmin ? "Admin" : displayName}
             </span>
             <span className="text-onyx-600">·</span>
-            <span className="text-onyx-500">Switch</span>
+            <span className="text-onyx-500">Log out</span>
           </button>
         </div>
       </div>

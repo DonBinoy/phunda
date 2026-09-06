@@ -5,6 +5,7 @@ export type AppTab =
   | "todos"
   | "expenses"
   | "performance"
+  | "admin"
   | "profile";
 
 interface TabNavProps {
@@ -26,11 +27,18 @@ const ADMIN_TAB: { id: AppTab; label: string; desc: string } = {
   desc: "Stats",
 };
 
+const ADMIN_SETTINGS_TAB: { id: AppTab; label: string; desc: string } = {
+  id: "admin",
+  label: "👑 Admin",
+  desc: "Add People & Chores",
+};
+
 export function TabNav({ active, onChange, isAdmin = false }: TabNavProps) {
   const tabs = isAdmin
     ? [
         ...BASE_TABS.filter((t) => t.id !== "profile"),
         ADMIN_TAB,
+        ADMIN_SETTINGS_TAB,
         BASE_TABS.find((t) => t.id === "profile")!,
       ]
     : BASE_TABS;
@@ -41,6 +49,7 @@ export function TabNav({ active, onChange, isAdmin = false }: TabNavProps) {
         <div className="glass-card flex gap-1 overflow-x-auto p-1">
           {tabs.map((tab) => {
             const isActive = active === tab.id;
+            const isAdminSettings = tab.id === "admin";
             return (
               <button
                 key={tab.id}
@@ -48,12 +57,24 @@ export function TabNav({ active, onChange, isAdmin = false }: TabNavProps) {
                 onClick={() => onChange(tab.id)}
                 className={`relative flex min-w-0 flex-1 flex-col items-center rounded-xl px-2 py-2.5 transition-all sm:flex-row sm:justify-center sm:gap-2 sm:px-3 sm:py-3 ${
                   isActive
-                    ? "bg-gradient-to-b from-sea-500/20 to-sea-500/5 text-sea-300 shadow-sm ring-1 ring-sea-500/30"
-                    : "text-onyx-500 hover:bg-onyx-800/50 hover:text-onyx-300"
+                    ? isAdminSettings
+                      ? "bg-gradient-to-b from-fawn-500/25 to-fawn-500/10 text-fawn-300 shadow-sm ring-1 ring-fawn-500/40"
+                      : "bg-gradient-to-b from-sea-500/20 to-sea-500/5 text-sea-300 shadow-sm ring-1 ring-sea-500/30"
+                    : isAdminSettings
+                      ? "text-fawn-400/80 hover:bg-fawn-500/10 hover:text-fawn-300 ring-1 ring-fawn-500/20"
+                      : "text-onyx-500 hover:bg-onyx-800/50 hover:text-onyx-300"
                 }`}
               >
                 <span
-                  className={`text-xs font-semibold sm:text-sm ${isActive ? "text-sea-300" : ""}`}
+                  className={`text-xs font-semibold sm:text-sm ${
+                    isActive
+                      ? isAdminSettings
+                        ? "text-fawn-300"
+                        : "text-sea-300"
+                      : isAdminSettings
+                        ? "text-fawn-400"
+                        : ""
+                  }`}
                 >
                   {tab.label}
                 </span>

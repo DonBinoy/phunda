@@ -1,8 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { PEOPLE } from "@/lib/constants";
-import { PERSON_COLORS } from "@/lib/personColors";
+import { useHouseholdConfig } from "@/context/HouseholdConfigContext";
+import { getPersonColors } from "@/lib/personColors";
 import type { PersonId } from "@/lib/types";
 
 interface LoginScreenProps {
@@ -11,6 +11,8 @@ interface LoginScreenProps {
 }
 
 export function LoginScreen({ onLoginPerson, onLoginAdmin }: LoginScreenProps) {
+  const { people, personIds, loading } = useHouseholdConfig();
+
   return (
     <div className="app-bg flex min-h-full flex-1 flex-col items-center justify-center px-4 py-12">
       <div className="animate-fade-in w-full max-w-lg space-y-8">
@@ -36,26 +38,30 @@ export function LoginScreen({ onLoginPerson, onLoginAdmin }: LoginScreenProps) {
           <p className="mb-4 text-center text-xs font-semibold uppercase tracking-widest text-onyx-500">
             Who are you?
           </p>
-          <div className="grid grid-cols-2 gap-3">
-            {PEOPLE.map((person) => {
-              const colors = PERSON_COLORS[person.id];
-              return (
-                <button
-                  key={person.id}
-                  type="button"
-                  onClick={() => onLoginPerson(person.id)}
-                  className={`group flex flex-col items-center gap-3 rounded-2xl border border-onyx-800 bg-gradient-to-b ${colors.gradient} p-5 transition-all hover:scale-[1.02] hover:border-onyx-600 hover:shadow-lg active:scale-[0.98]`}
-                >
-                  <div
-                    className={`flex h-14 w-14 items-center justify-center rounded-2xl text-xl font-bold ring-2 ${colors.bg} ${colors.ring} ${colors.text}`}
+          {loading ? (
+            <p className="text-center text-sm text-onyx-500">Loading…</p>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              {people.map((person) => {
+                const colors = getPersonColors(person.id, personIds);
+                return (
+                  <button
+                    key={person.id}
+                    type="button"
+                    onClick={() => onLoginPerson(person.id)}
+                    className={`group flex flex-col items-center gap-3 rounded-2xl border border-onyx-800 bg-gradient-to-b ${colors.gradient} p-5 transition-all hover:scale-[1.02] hover:border-onyx-600 hover:shadow-lg active:scale-[0.98]`}
                   >
-                    {person.name[0]}
-                  </div>
-                  <span className="font-semibold text-onyx-100">{person.name}</span>
-                </button>
-              );
-            })}
-          </div>
+                    <div
+                      className={`flex h-14 w-14 items-center justify-center rounded-2xl text-xl font-bold ring-2 ${colors.bg} ${colors.ring} ${colors.text}`}
+                    >
+                      {person.name[0]}
+                    </div>
+                    <span className="font-semibold text-onyx-100">{person.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <button

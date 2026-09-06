@@ -216,3 +216,48 @@ export async function toggleTodoItem(
 export async function deleteTodo(id: string): Promise<void> {
   await request<void>(`/api/todos/${id}`, { method: "DELETE" });
 }
+
+export interface ApiPerson {
+  id: string;
+  name: string;
+  baselineTaskIndex: number;
+  sortOrder: number;
+  createdAt: string;
+}
+
+export interface ApiChore {
+  id: string;
+  name: string;
+  shortName: string;
+  category: "daily" | "weekend";
+  slots: number;
+  sortOrder: number;
+  createdAt: string;
+}
+
+export async function fetchPeople(): Promise<ApiPerson[]> {
+  return request<ApiPerson[]>("/api/people");
+}
+
+export async function createPerson(body: { name: string }): Promise<ApiPerson> {
+  return request<ApiPerson>("/api/people", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function fetchChores(): Promise<ApiChore[]> {
+  return request<ApiChore[]>("/api/chores");
+}
+
+export async function createChore(body: {
+  name: string;
+  shortName?: string;
+  category: "daily" | "weekend";
+  slots?: number;
+}): Promise<ApiChore> {
+  return request<ApiChore>("/api/chores", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}

@@ -2,18 +2,17 @@ import { z } from "zod";
 import { pool } from "@/lib/db/pool";
 import { AppError } from "@/lib/server/errors";
 import { createExpense, createSplitExpense } from "@/lib/services/expenses";
-
-const PERSON_ID_ENUM = ["don", "bijo", "suraj", "adithyan"] as const;
+import { parseOptionalPersonId } from "@/lib/services/validatePerson";
 
 const createTemplateSchema = z.object({
   name: z.string().trim().min(1).max(100),
   amount: z.number().positive(),
-  personId: z.enum(PERSON_ID_ENUM).optional(),
+  personId: z.string().trim().min(1).max(30).optional(),
   splitEqually: z.boolean().optional(),
 });
 
 const applySchema = z.object({
-  personId: z.enum(PERSON_ID_ENUM).optional(),
+  personId: z.string().trim().min(1).max(30).optional(),
 });
 
 function mapTemplateRow(row: {
@@ -36,7 +35,13 @@ function mapTemplateRow(row: {
   };
 }
 
+import { isMockDb } from "@/lib/server/isMockDb";
+import { mockStore } from "@/lib/server/mockStore";
+
 export async function getExpenseTemplates() {
+  if (isMockDb()) {
+    return mockStore.getExpenseTemplates();
+  }
   const { rows } = await pool.query(
     `SELECT id, name, amount, person_id, split_equally, sort_order, created_at
      FROM expense_templates
@@ -47,6 +52,17 @@ export async function getExpenseTemplates() {
 
 export async function createExpenseTemplate(body: unknown) {
   const data = createTemplateSchema.parse(body);
+  const personId = await parseOptionalPersonId(data.personId);
+
+  if (isMockDb()) {
+    return mockStore.createExpenseTemplate({
+      name: data.name,
+      amount: data.amount,
+      personId,
+      splitEqually: data.splitEqually,
+    });
+  }
+
   const { rows } = await pool.query(
     `INSERT INTO expense_templates (name, amount, person_id, split_equally)
      VALUES ($1, $2, $3, $4)
@@ -54,7 +70,7 @@ export async function createExpenseTemplate(body: unknown) {
     [
       data.name,
       data.amount,
-      data.personId ?? null,
+      personId ?? null,
       data.splitEqually ?? false,
     ],
   );
@@ -63,6 +79,10 @@ export async function createExpenseTemplate(body: unknown) {
 
 export async function deleteExpenseTemplate(id: string) {
   const parsed = z.string().uuid().parse(id);
+  if (isMockDb()) {
+    mockStore.deleteExpenseTemplate(parsed);
+    return;
+  }
   const result = await pool.query(
     `DELETE FROM expense_templates WHERE id = $1 RETURNING id`,
     [parsed],
@@ -74,7 +94,12 @@ export async function deleteExpenseTemplate(id: string) {
 
 export async function applyExpenseTemplate(id: string, body: unknown) {
   const parsedId = z.string().uuid().parse(id);
-  const { personId: overridePersonId } = applySchema.parse(body ?? {});
+  const parsed = applySchema.parse(body ?? {});
+  const overridePersonId = await parseOptionalPersonId(parsed.personId);
+
+  if (isMockDb()) {
+    return mockStore.applyExpenseTemplate(parsedId, overridePersonId);
+  }
 
   const { rows } = await pool.query(
     `SELECT id, name, amount, person_id, split_equally, sort_order, created_at

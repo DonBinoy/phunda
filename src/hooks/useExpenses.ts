@@ -11,41 +11,50 @@ import {
 import { PEOPLE } from "@/lib/constants";
 import type { ExpenseEntry, PersonId, PersonTotalsMap } from "@/lib/types";
 
-const EMPTY_BY_PERSON = Object.fromEntries(
-  PEOPLE.map((p) => [p.id, { income: 0, expense: 0, balance: 0 }]),
-) as PersonTotalsMap;
+function buildEmptyByPerson(personIds?: readonly string[]): PersonTotalsMap {
+  const ids = personIds && personIds.length > 0 ? personIds : PEOPLE.map((p) => p.id);
+  return Object.fromEntries(
+    ids.map((id) => [id, { income: 0, expense: 0, balance: 0 }]),
+  ) as PersonTotalsMap;
+}
 
-function recomputeTotals(entries: ExpenseEntry[]): ExpensesResponse["totals"] {
+function recomputeTotals(
+  entries: ExpenseEntry[],
+  personIds?: readonly string[],
+): ExpensesResponse["totals"] {
   let expense = 0;
   let income = 0;
-  const byPerson = structuredClone(EMPTY_BY_PERSON);
+  const byPerson = buildEmptyByPerson(personIds);
 
   for (const e of entries) {
     if (e.type === "expense") expense += e.amount;
     else income += e.amount;
 
     if (e.personId) {
+      if (!byPerson[e.personId]) {
+        byPerson[e.personId] = { income: 0, expense: 0, balance: 0 };
+      }
       if (e.type === "expense") byPerson[e.personId].expense += e.amount;
       else byPerson[e.personId].income += e.amount;
     }
   }
 
-  for (const p of PEOPLE) {
-    byPerson[p.id].balance =
-      byPerson[p.id].income - byPerson[p.id].expense;
+  for (const id of Object.keys(byPerson)) {
+    byPerson[id].balance =
+      byPerson[id].income - byPerson[id].expense;
   }
 
   return { expense, income, balance: income - expense, byPerson };
 }
 
-export function useExpenses() {
+export function useExpenses(personIds?: readonly string[]) {
   const [entries, setEntries] = useState<ExpenseEntry[]>([]);
-  const [totals, setTotals] = useState<ExpensesResponse["totals"]>({
+  const [totals, setTotals] = useState<ExpensesResponse["totals"]>(() => ({
     expense: 0,
     income: 0,
     balance: 0,
-    byPerson: EMPTY_BY_PERSON,
-  });
+    byPerson: buildEmptyByPerson(personIds),
+  }));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -75,7 +84,7 @@ export function useExpenses() {
     const created = await createExpense(body);
     setEntries((prev) => {
       const next = [created, ...prev];
-      setTotals(recomputeTotals(next));
+      setTotals(recomputeTotals(next, personIds));
       return next;
     });
   };
@@ -88,7 +97,7 @@ export function useExpenses() {
     const created = await createSplitExpense(body);
     setEntries((prev) => {
       const next = [...created, ...prev];
-      setTotals(recomputeTotals(next));
+      setTotals(recomputeTotals(next, personIds));
       return next;
     });
     return created;
@@ -98,7 +107,7 @@ export function useExpenses() {
     const batch = Array.isArray(created) ? created : [created];
     setEntries((prev) => {
       const next = [...batch, ...prev];
-      setTotals(recomputeTotals(next));
+      setTotals(recomputeTotals(next, personIds));
       return next;
     });
   };
@@ -111,7 +120,7 @@ export function useExpenses() {
     const prevTotals = totals;
     const nextEntries = entries.filter((e) => e.id !== id);
     setEntries(nextEntries);
-    setTotals(recomputeTotals(nextEntries));
+    setTotals(recomputeTotals(nextEntries, personIds));
 
     try {
       await deleteExpense(id);

@@ -2,8 +2,10 @@ import { z } from "zod";
 import { pool } from "@/lib/db/pool";
 import { AppError } from "@/lib/server/errors";
 
-const DAILY_TASKS = ["paathram", "veg", "kari", "rice"] as const;
-const WEEKEND_TASKS = ["kitchen", "bathroom", "room"] as const;
+import { getChoreIds } from "@/lib/services/chores";
+
+const DEFAULT_DAILY_TASKS = ["paathram", "veg", "kari", "rice"];
+const DEFAULT_WEEKEND_TASKS = ["kitchen", "bathroom", "room"];
 const dateKeySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
 const toggleSchema = z.object({
@@ -13,7 +15,13 @@ const toggleSchema = z.object({
   completed: z.boolean().optional(),
 });
 
+import { isMockDb } from "@/lib/server/isMockDb";
+import { mockStore } from "@/lib/server/mockStore";
+
 export async function getCompletions(from?: string, to?: string) {
+  if (isMockDb()) {
+    return mockStore.getCompletions(from, to);
+  }
   let query = `
     SELECT task_date::text AS date, category, task_id, completed
     FROM task_completions
@@ -59,11 +67,20 @@ export async function getCompletions(from?: string, to?: string) {
 
 export async function toggleCompletion(body: unknown) {
   const data = toggleSchema.parse(body);
-  const validTasks: readonly string[] =
-    data.category === "daily" ? DAILY_TASKS : WEEKEND_TASKS;
+  const choreIds = await getChoreIds(data.category);
+  const validTasks =
+    choreIds.length > 0
+      ? choreIds
+      : data.category === "daily"
+        ? DEFAULT_DAILY_TASKS
+        : DEFAULT_WEEKEND_TASKS;
 
   if (!validTasks.includes(data.taskId)) {
     throw new AppError(400, `Invalid task id: ${data.taskId}`);
+  }
+
+  if (isMockDb()) {
+    return mockStore.toggleCompletion(data);
   }
 
   const existing = await pool.query<{ completed: boolean }>(

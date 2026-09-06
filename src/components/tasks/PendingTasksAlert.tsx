@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useHouseholdConfig } from "@/context/HouseholdConfigContext";
 import { getPendingTasks } from "@/lib/tasks";
 import { toDateKey } from "@/lib/rotation";
 import type { CompletionsStore, CustomTask, PendingTaskItem, TodoList, ViewScope } from "@/lib/types";
@@ -24,6 +25,7 @@ export function PendingTasksAlert({
   outsideEatingDays = new Set(),
   viewScope,
 }: PendingTasksAlertProps) {
+  const { config } = useHouseholdConfig();
   const [dismissed, setDismissed] = useState(true);
   const pending = getPendingTasks(
     date,
@@ -32,6 +34,7 @@ export function PendingTasksAlert({
     todos,
     outsideEatingDays,
     viewScope,
+    config,
   );
 
   useEffect(() => {

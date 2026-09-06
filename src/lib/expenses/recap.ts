@@ -1,6 +1,6 @@
 import { PEOPLE } from "@/lib/constants";
 import { personName } from "@/lib/rotation";
-import type { ExpenseEntry, PersonId } from "@/lib/types";
+import type { ExpenseEntry, Person, PersonId } from "@/lib/types";
 
 export type RecapPeriod = "week" | "month";
 
@@ -84,6 +84,7 @@ export function computeExpenseRecap(
   entries: ExpenseEntry[],
   period: RecapPeriod,
   now = new Date(),
+  peopleList: Person[] = PEOPLE,
 ): ExpenseRecap {
   const { from, to, label } = getPeriodRange(period, now);
   const inRange = entries.filter((e) => inPeriod(e.createdAt, from, to));
@@ -96,7 +97,7 @@ export function computeExpenseRecap(
     PersonId | "unassigned",
     { expense: number; income: number; count: number }
   >();
-  for (const p of PEOPLE) {
+  for (const p of peopleList) {
     personMap.set(p.id, { expense: 0, income: 0, count: 0 });
   }
   personMap.set("unassigned", { expense: 0, income: 0, count: 0 });
@@ -114,7 +115,11 @@ export function computeExpenseRecap(
       expenseCount += 1;
 
       const key = e.personId ?? "unassigned";
-      const row = personMap.get(key)!;
+      let row = personMap.get(key);
+      if (!row) {
+        row = { expense: 0, income: 0, count: 0 };
+        personMap.set(key, row);
+      }
       row.expense += e.amount;
       row.count += 1;
 
@@ -135,15 +140,19 @@ export function computeExpenseRecap(
     } else {
       totalIncome += e.amount;
       if (e.personId) {
-        const row = personMap.get(e.personId)!;
+        let row = personMap.get(e.personId);
+        if (!row) {
+          row = { expense: 0, income: 0, count: 0 };
+          personMap.set(e.personId, row);
+        }
         row.income += e.amount;
         row.count += 1;
       }
     }
   }
 
-  const byPerson: PersonRecapRow[] = PEOPLE.map((p) => {
-    const row = personMap.get(p.id)!;
+  const byPerson: PersonRecapRow[] = peopleList.map((p) => {
+    const row = personMap.get(p.id) ?? { expense: 0, income: 0, count: 0 };
     return {
       personId: p.id,
       name: p.name,
@@ -154,7 +163,7 @@ export function computeExpenseRecap(
   });
 
   const unassigned = personMap.get("unassigned")!;
-  if (unassigned.expense > 0 || unassigned.count > 0) {
+  if (unassigned && (unassigned.expense > 0 || unassigned.count > 0)) {
     byPerson.push({
       personId: null,
       name: "Unassigned",

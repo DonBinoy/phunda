@@ -1,17 +1,20 @@
 import { z } from "zod";
 import { pool } from "@/lib/db/pool";
-import { PERSON_IDS } from "@/lib/constants";
 import { buildSplitShares } from "@/lib/expenses/split";
 import { AppError } from "@/lib/server/errors";
-
-const PERSON_ID_ENUM = ["don", "bijo", "suraj", "adithyan"] as const;
+import { getPersonIds } from "@/lib/services/people";
+import {
+  parseOptionalPersonId,
+  parsePersonId,
+  parsePersonIdList,
+} from "@/lib/services/validatePerson";
 
 const createSchema = z
   .object({
     type: z.enum(["expense", "income"]),
     amount: z.number().positive(),
     comment: z.string().trim().min(1).max(500),
-    personId: z.enum(PERSON_ID_ENUM).optional(),
+    personId: z.string().trim().min(1).max(30).optional(),
   })
   .refine((data) => data.type !== "income" || !!data.personId, {
     message: "personId is required for income entries",
@@ -21,7 +24,7 @@ const createSchema = z
 const splitSchema = z.object({
   amount: z.number().positive(),
   comment: z.string().trim().min(1).max(500),
-  personIds: z.array(z.enum(PERSON_ID_ENUM)).min(2).optional(),
+  personIds: z.array(z.string().trim().min(1).max(30)).min(2).optional(),
 });
 
 function mapRow(row: {
@@ -42,7 +45,8 @@ function mapRow(row: {
   };
 }
 
-function computeTotals(entries: ReturnType<typeof mapRow>[]) {
+async function computeTotals(entries: ReturnType<typeof mapRow>[]) {
+  const personIds = await getPersonIds();
   let expense = 0;
   let income = 0;
   const byPerson: Record<
@@ -50,7 +54,7 @@ function computeTotals(entries: ReturnType<typeof mapRow>[]) {
     { income: number; expense: number; balance: number }
   > = {};
 
-  for (const id of PERSON_IDS) {
+  for (const id of personIds) {
     byPerson[id] = { income: 0, expense: 0, balance: 0 };
   }
 
@@ -64,37 +68,68 @@ function computeTotals(entries: ReturnType<typeof mapRow>[]) {
     }
   }
 
-  for (const id of PERSON_IDS) {
+  for (const id of personIds) {
     byPerson[id].balance = byPerson[id].income - byPerson[id].expense;
   }
 
   return { expense, income, balance: income - expense, byPerson };
 }
 
+import { isMockDb } from "@/lib/server/isMockDb";
+import { mockStore } from "@/lib/server/mockStore";
+
 export async function getExpenses() {
+  if (isMockDb()) {
+    return mockStore.getExpenses();
+  }
   const { rows } = await pool.query(
     `SELECT id, type, amount, comment, person_id, created_at
      FROM expense_entries
      ORDER BY created_at DESC`,
   );
   const entries = rows.map(mapRow);
-  return { entries, totals: computeTotals(entries) };
+  return { entries, totals: await computeTotals(entries) };
 }
 
 export async function createExpense(body: unknown) {
   const data = createSchema.parse(body);
+  const personId = data.personId
+    ? await parsePersonId(data.personId)
+    : undefined;
+
+  if (isMockDb()) {
+    return mockStore.createExpense({
+      type: data.type,
+      amount: data.amount,
+      comment: data.comment,
+      personId,
+    });
+  }
+
   const { rows } = await pool.query(
     `INSERT INTO expense_entries (type, amount, comment, person_id)
      VALUES ($1, $2, $3, $4)
      RETURNING id, type, amount, comment, person_id, created_at`,
-    [data.type, data.amount, data.comment, data.personId ?? null],
+    [data.type, data.amount, data.comment, personId ?? null],
   );
   return mapRow(rows[0]);
 }
 
 export async function createSplitExpense(body: unknown) {
   const data = splitSchema.parse(body);
-  const members = data.personIds ?? [...PERSON_IDS];
+  const members =
+    data.personIds !== undefined
+      ? await parsePersonIdList(data.personIds, 2)
+      : await getPersonIds();
+
+  if (isMockDb()) {
+    return mockStore.createSplitExpense({
+      amount: data.amount,
+      comment: data.comment,
+      personIds: members,
+    });
+  }
+
   const shares = buildSplitShares(data.amount, members);
   const splitComment = `${data.comment} (split equally)`;
 
@@ -125,6 +160,10 @@ export async function createSplitExpense(body: unknown) {
 
 export async function deleteExpense(id: string) {
   const parsed = z.string().uuid().parse(id);
+  if (isMockDb()) {
+    mockStore.deleteExpense(parsed);
+    return;
+  }
   const result = await pool.query(
     `DELETE FROM expense_entries WHERE id = $1 RETURNING id`,
     [parsed],

@@ -6,6 +6,7 @@ import { useCompletions } from "@/hooks/useCompletions";
 import { useOutsideEating } from "@/hooks/useOutsideEating";
 import { useTodos } from "@/hooks/useTodos";
 import { usePersonSession } from "@/context/PersonSessionContext";
+import { useHouseholdConfig } from "@/context/HouseholdConfigContext";
 import { Alert } from "@/components/ui/Alert";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -25,6 +26,7 @@ import { OutsideEatingCalendar } from "./OutsideEatingCalendar";
 import { PendingTasksAlert } from "./PendingTasksAlert";
 import { GauntletWidget } from "./GauntletWidget";
 import { WheelOfMisfortune } from "./WheelOfMisfortune";
+import type { AppTab } from "@/components/TabNav";
 import {
   DailyTasks,
   PersonOverview,
@@ -32,8 +34,13 @@ import {
   WeekendTasks,
 } from "./TaskViews";
 
-export function TaskManager() {
+interface TaskManagerProps {
+  onNavigateTab?: (tab: AppTab) => void;
+}
+
+export function TaskManager({ onNavigateTab }: TaskManagerProps = {}) {
   const { viewScope, isAdmin } = usePersonSession();
+  const { config } = useHouseholdConfig();
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [calendarCenter, setCalendarCenter] = useState(() => new Date());
   const { completions, loading, error, toggleDaily, toggleWeekend } =
@@ -90,6 +97,7 @@ export function TaskManager() {
     todos,
     outsideEatingDays,
     viewScope,
+    config,
   );
   const totalCount = totalTaskCountForDate(
     selectedDate,
@@ -97,6 +105,7 @@ export function TaskManager() {
     todos,
     outsideEatingDays,
     viewScope,
+    config,
   );
   const displayError = error ?? customError ?? outsideError;
   const today = new Date();
@@ -115,6 +124,38 @@ export function TaskManager() {
       />
       
       <GauntletWidget />
+
+      {isAdmin && (
+        <div className="flex flex-col gap-3 rounded-2xl border border-fawn-500/30 bg-gradient-to-r from-fawn-500/15 via-onyx-900/60 to-onyx-950/80 p-4 shadow-lg sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-fawn-500/20 text-xl ring-1 ring-fawn-500/40">
+              👑
+            </span>
+            <div>
+              <p className="text-sm font-bold text-fawn-200">Admin Control Center</p>
+              <p className="text-xs text-onyx-400">
+                Only admins can add household members and create new daily chores.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => onNavigateTab?.("admin")}
+              className="rounded-xl bg-sea-500 px-3.5 py-2 text-xs font-bold text-onyx-950 shadow-sm transition hover:bg-sea-400"
+            >
+              + Add New Person
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigateTab?.("admin")}
+              className="rounded-xl bg-fawn-500 px-3.5 py-2 text-xs font-bold text-onyx-950 shadow-sm transition hover:bg-fawn-400"
+            >
+              + Add Daily Chore
+            </button>
+          </div>
+        </div>
+      )}
 
       <PageHeader
         title={formatDisplayDate(selectedDate)}
@@ -165,6 +206,7 @@ export function TaskManager() {
             viewScope={viewScope}
             onToggle={toggleDaily}
             onToggleOutsideEating={toggleOutsideEating}
+            onAddDailyChore={() => onNavigateTab?.("admin")}
           />
           {weekend && (
             <div className="space-y-5">

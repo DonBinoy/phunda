@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { PEOPLE } from "@/lib/constants";
+import { useHouseholdConfig } from "@/context/HouseholdConfigContext";
 import { isToday, isTomorrow, personName, toDateKey } from "@/lib/rotation";
 import { Section } from "@/components/ui/Section";
 import type { CustomTask, PersonId, ViewScope } from "@/lib/types";
@@ -92,6 +92,7 @@ export function CustomTasks({
   onDelete,
   onAdd,
 }: CustomTasksProps) {
+  const { config, people } = useHouseholdConfig();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [personId, setPersonId] = useState<PersonId | "">(
@@ -161,7 +162,7 @@ export function CustomTasks({
             <label className="mb-2 block text-xs text-onyx-400">Assign to</label>
             {viewScope.isAdmin ? (
               <div className="grid grid-cols-4 gap-2">
-                {PEOPLE.map((person) => (
+                {people.map((person) => (
                   <button
                     key={person.id}
                     type="button"
@@ -178,7 +179,7 @@ export function CustomTasks({
               </div>
             ) : (
               <p className="rounded-lg border border-onyx-700 bg-onyx-950 px-3 py-2 text-sm text-pine-400">
-                {personName(viewScope.personId)}
+                {personName(viewScope.personId, config)}
               </p>
             )}
           </div>
@@ -204,7 +205,7 @@ export function CustomTasks({
             <CustomTaskCard
               key={task.id}
               title={task.title}
-              assignee={personName(task.personId)}
+              assignee={personName(task.personId, config)}
               completed={task.completed}
               highlight={highlight}
               onToggle={() => onToggle(task.id)}

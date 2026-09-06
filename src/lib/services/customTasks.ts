@@ -2,13 +2,13 @@ import { z } from "zod";
 import { pool } from "@/lib/db/pool";
 import { formatPgDate } from "@/lib/server/dates";
 import { AppError } from "@/lib/server/errors";
+import { parsePersonId } from "@/lib/services/validatePerson";
 
-const PERSON_IDS = ["don", "bijo", "suraj", "adithyan"] as const;
 const dateKeySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
 const createSchema = z.object({
   title: z.string().trim().min(1).max(200),
-  personId: z.enum(PERSON_IDS),
+  personId: z.string().trim().min(1).max(30),
   date: dateKeySchema,
 });
 
@@ -30,9 +30,15 @@ function mapRow(row: {
   };
 }
 
+import { isMockDb } from "@/lib/server/isMockDb";
+import { mockStore } from "@/lib/server/mockStore";
+
 export async function getCustomTasks(from?: string, to?: string) {
+  if (isMockDb()) {
+    return mockStore.getCustomTasks(from, to);
+  }
   let query = `
-    SELECT id, title, person_id, task_date, completed, created_at
+    SELECT id, title, person_id, task_date::text AS date, completed, created_at
     FROM custom_tasks
   `;
   const params: string[] = [];
@@ -55,11 +61,20 @@ export async function getCustomTasks(from?: string, to?: string) {
 
 export async function createCustomTask(body: unknown) {
   const data = createSchema.parse(body);
+  const personId = await parsePersonId(data.personId);
+
+  if (isMockDb()) {
+    return mockStore.createCustomTask({
+      title: data.title,
+      personId,
+      date: data.date,
+    });
+  }
   const { rows } = await pool.query(
     `INSERT INTO custom_tasks (title, person_id, task_date)
      VALUES ($1, $2, $3::date)
      RETURNING id, title, person_id, task_date, completed, created_at`,
-    [data.title, data.personId, data.date],
+    [data.title, personId, data.date],
   );
   return mapRow(rows[0]);
 }
@@ -69,6 +84,10 @@ export async function toggleCustomTask(id: string, body: unknown) {
   const completed = z
     .object({ completed: z.boolean().optional() })
     .parse(body ?? {}).completed;
+
+  if (isMockDb()) {
+    return mockStore.toggleCustomTask(parsedId, completed);
+  }
 
   const existing = await pool.query<{ completed: boolean }>(
     `SELECT completed FROM custom_tasks WHERE id = $1`,
@@ -94,6 +113,10 @@ export async function toggleCustomTask(id: string, body: unknown) {
 
 export async function deleteCustomTask(id: string) {
   const parsedId = z.string().uuid().parse(id);
+  if (isMockDb()) {
+    mockStore.deleteCustomTask(parsedId);
+    return;
+  }
   const result = await pool.query(
     `DELETE FROM custom_tasks WHERE id = $1 RETURNING id`,
     [parsedId],

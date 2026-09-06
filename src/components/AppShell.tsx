@@ -6,6 +6,7 @@ import { Footer } from "@/components/Footer";
 import { Header } from "@/components/Header";
 import { TabNav, type AppTab } from "@/components/TabNav";
 import { LoadingState } from "@/components/ui/LoadingState";
+import { AdminManager } from "@/components/admin/AdminManager";
 import { ExpenseManager } from "@/components/expenses/ExpenseManager";
 import { PerformanceManager } from "@/components/performance/PerformanceManager";
 import { PersonProfile } from "@/components/profile/PersonProfile";
@@ -27,7 +28,7 @@ export function AppShell() {
   const [profilePersonId, setProfilePersonId] = useState<PersonId | null>(null);
 
   useEffect(() => {
-    if (!isAdmin && tab === "performance") {
+    if (!isAdmin && (tab === "performance" || tab === "admin")) {
       setTab("tasks");
     }
   }, [isAdmin, tab]);
@@ -73,12 +74,13 @@ export function AppShell() {
       <TabNav active={tab} onChange={setTab} isAdmin={isAdmin} />
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
         <div className="animate-fade-in">
-          {tab === "tasks" && <TaskManager />}
+          {tab === "tasks" && <TaskManager onNavigateTab={setTab} />}
           {tab === "todos" && <TodoManager />}
           {tab === "expenses" && <ExpenseManager />}
           {tab === "performance" && isAdmin && (
             <PerformanceManager onOpenProfile={openProfile} />
           )}
+          {tab === "admin" && isAdmin && <AdminManager />}
           {tab === "profile" && viewingProfileId && (
             <PersonProfile
               personId={viewingProfileId}

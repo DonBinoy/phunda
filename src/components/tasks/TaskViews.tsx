@@ -1,6 +1,6 @@
 "use client";
 
-import { DAILY_TASKS, PEOPLE } from "@/lib/constants";
+import { useHouseholdConfig } from "@/context/HouseholdConfigContext";
 import {
   formatDisplayDate,
   formatWeekdayShort,
@@ -27,7 +27,7 @@ import type {
   WeekendTaskId,
 } from "@/lib/types";
 import { Section } from "@/components/ui/Section";
-import { PERSON_COLORS } from "@/lib/personColors";
+import { getPersonColors } from "@/lib/personColors";
 
 interface TaskCardProps {
   title: string;
@@ -92,6 +92,7 @@ interface DailyTasksProps {
   viewScope: ViewScope;
   onToggle: (dateKey: string, taskId: DailyTaskId) => void;
   onToggleOutsideEating: (dateKey: string) => void;
+  onAddDailyChore?: () => void;
 }
 
 export function DailyTasks({
@@ -101,9 +102,11 @@ export function DailyTasks({
   viewScope,
   onToggle,
   onToggleOutsideEating,
+  onAddDailyChore,
 }: DailyTasksProps) {
+  const { config, dailyTasks } = useHouseholdConfig();
   const dateKey = toDateKey(date);
-  const assignments = getDailyAssignments(date, outsideEatingDays).filter(
+  const assignments = getDailyAssignments(date, outsideEatingDays, config).filter(
     (a) => viewScope.isAdmin || a.personId === viewScope.personId,
   );
   const dayCompletions = completions[dateKey]?.daily ?? {};
@@ -126,6 +129,15 @@ export function DailyTasks({
             >
               {highlight === "today" ? "Today" : "Tomorrow"}
             </span>
+          )}
+          {viewScope.isAdmin && onAddDailyChore && (
+            <button
+              type="button"
+              onClick={onAddDailyChore}
+              className="chip border border-fawn-500/40 bg-fawn-500/15 text-fawn-300 transition-colors hover:bg-fawn-500/25"
+            >
+              + Add Daily Chore
+            </button>
           )}
           {viewScope.isAdmin && (
             <button
@@ -161,12 +173,13 @@ export function DailyTasks({
       {assignments.length > 0 ? (
         <div className="grid gap-2 sm:grid-cols-2">
           {assignments.map(({ taskId, personId }) => {
-            const task = DAILY_TASKS.find((t) => t.id === taskId)!;
+            const task = dailyTasks.find((t) => t.id === taskId);
+            if (!task) return null;
             return (
               <TaskCard
                 key={taskId}
                 title={task.name}
-                assignee={personName(personId)}
+                assignee={personName(personId, config)}
                 completed={!!dayCompletions[taskId]}
                 onToggle={() => onToggle(dateKey, taskId)}
                 highlight={highlight}
@@ -196,8 +209,9 @@ export function WeekendTasks({
   viewScope,
   onToggle,
 }: WeekendTasksProps) {
+  const { config } = useHouseholdConfig();
   const dateKey = toDateKey(date);
-  const assignments = getWeekendAssignments(date).filter(
+  const assignments = getWeekendAssignments(date, config).filter(
     ({ personIds }) => viewScope.isAdmin || personIds.includes(viewScope.personId),
   );
   const dayCompletions = completions[dateKey]?.weekend ?? {};
@@ -230,16 +244,12 @@ export function WeekendTasks({
       ) : (
       <div className="grid gap-2">
         {assignments.map(({ taskId, personIds }) => {
-          const names = personIds.map(personName).join(" & ");
-          const labels: Record<WeekendTaskId, string> = {
-            kitchen: "Kitchen Cleaning",
-            bathroom: "Bathroom Cleaning",
-            room: "Room Cleaning",
-          };
+          const names = personIds.map((id) => personName(id, config)).join(" & ");
+          const task = config.weekendTasks.find((t) => t.id === taskId);
           return (
             <TaskCard
               key={taskId}
-              title={labels[taskId]}
+              title={task?.name ?? taskId}
               assignee={names}
               completed={!!dayCompletions[taskId]}
               onToggle={() => onToggle(dateKey, taskId)}
@@ -272,6 +282,7 @@ export function TaskCalendar({
   outsideEatingDays,
   viewScope,
 }: TaskCalendarProps) {
+  const { config } = useHouseholdConfig();
   const dates: Date[] = [];
   const start = new Date(centerDate);
   start.setDate(start.getDate() - 3);
@@ -295,6 +306,7 @@ export function TaskCalendar({
             [],
             outsideEatingDays,
             viewScope,
+            config,
           );
           const doneCount = completionCountForDateFull(
             date,
@@ -303,6 +315,7 @@ export function TaskCalendar({
             [],
             outsideEatingDays,
             viewScope,
+            config,
           );
           const allDone = totalTasks > 0 && doneCount === totalTasks;
           const ateOutside = isOutsideEatingDay(date, outsideEatingDays);
@@ -370,10 +383,11 @@ export function PersonOverview({
   outsideEatingDays,
   viewScope,
 }: PersonOverviewProps) {
+  const { config, people: allPeople, dailyTasks, personIds } = useHouseholdConfig();
   const ateOutside = isOutsideEatingDay(date, outsideEatingDays);
   const people = viewScope.isAdmin
-    ? PEOPLE
-    : PEOPLE.filter((p) => p.id === viewScope.personId);
+    ? allPeople
+    : allPeople.filter((p) => p.id === viewScope.personId);
 
   return (
     <Section
@@ -382,9 +396,9 @@ export function PersonOverview({
     >
       <div className="grid gap-2">
         {people.map((person) => {
-          const taskId = getPersonDailyTask(person.id, date, outsideEatingDays);
-          const task = taskId ? DAILY_TASKS.find((t) => t.id === taskId) : null;
-          const colors = PERSON_COLORS[person.id as PersonId];
+          const taskId = getPersonDailyTask(person.id, date, outsideEatingDays, config);
+          const task = taskId ? dailyTasks.find((t) => t.id === taskId) : null;
+          const colors = getPersonColors(person.id, personIds);
           return (
             <div
               key={person.id}

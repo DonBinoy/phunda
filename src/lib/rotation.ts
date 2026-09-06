@@ -4,12 +4,15 @@ import {
   KITCHEN_PAIR_A,
   KITCHEN_PAIR_B,
   PEOPLE,
-  PERSON_IDS,
   ROTATION_EPOCH,
   TASK_ROTATION,
   WEEKEND_KITCHEN_OFFSET,
   WEEKEND_TASKS,
 } from "./constants";
+import {
+  DEFAULT_HOUSEHOLD_CONFIG,
+  type HouseholdConfig,
+} from "./householdConfig";
 import type {
   DailyAssignment,
   DailyTaskId,
@@ -17,8 +20,6 @@ import type {
   WeekendAssignment,
   WeekendTaskId,
 } from "./types";
-
-const INDEX_TASK: DailyTaskId[] = ["paathram", "veg", "kari", "rice"];
 
 export function toDateKey(date: Date): string {
   const y = date.getFullYear();
@@ -47,9 +48,6 @@ export function isWeekend(date: Date): boolean {
   const day = date.getDay();
   return day === 0 || day === 6;
 }
-
-export const DAILY_TASK_COUNT = 4;
-export const WEEKEND_TASK_COUNT = 3;
 
 export function isOutsideEatingDay(
   date: Date,
@@ -95,9 +93,12 @@ export function hasRescheduledDailyChores(
 export function totalTasksForDate(
   date: Date,
   outsideEatingDays: ReadonlySet<string> = new Set(),
+  config: HouseholdConfig = DEFAULT_HOUSEHOLD_CONFIG,
 ): number {
-  const daily = isOutsideEatingDay(date, outsideEatingDays) ? 0 : DAILY_TASK_COUNT;
-  return daily + (isWeekend(date) ? WEEKEND_TASK_COUNT : 0);
+  const daily = isOutsideEatingDay(date, outsideEatingDays)
+    ? 0
+    : config.dailyTasks.length;
+  return daily + (isWeekend(date) ? config.weekendTasks.length : 0);
 }
 
 export function completionCountForDate(
@@ -111,61 +112,110 @@ export function completionCountForDate(
   return daily + weekend;
 }
 
-function taskIndexForPerson(personId: PersonId, dayOffset: number): number {
-  let idx = BASELINE_PERSON_TASKS[personId];
-  const steps = ((dayOffset % 4) + 4) % 4;
+function taskIndexForPerson(
+  personId: PersonId,
+  dayOffset: number,
+  config: HouseholdConfig,
+): number {
+  const taskCount = Math.max(config.dailyTasks.length, 1);
+  let idx = config.baselinePersonTasks[personId] ?? 0;
+  const cycle = config.taskRotation.length || taskCount;
+  const steps = ((dayOffset % cycle) + cycle) % cycle;
   for (let i = 0; i < steps; i++) {
-    idx = TASK_ROTATION[idx];
+    idx = config.taskRotation[idx] ?? (idx + 1) % taskCount;
   }
-  return idx;
+  return idx % taskCount;
 }
 
-function buildDailyAssignments(dayOffset: number): DailyAssignment[] {
+function buildDailyAssignments(
+  dayOffset: number,
+  config: HouseholdConfig,
+): DailyAssignment[] {
+  const indexTask = config.dailyTasks.map((t) => t.id);
   const byTask = new Map<DailyTaskId, PersonId>();
 
-  for (const personId of PERSON_IDS) {
-    const taskIdx = taskIndexForPerson(personId, dayOffset);
-    byTask.set(INDEX_TASK[taskIdx], personId);
+  for (const personId of config.personIds) {
+    const taskIdx = taskIndexForPerson(personId, dayOffset, config);
+    byTask.set(indexTask[taskIdx], personId);
   }
 
-  return DAILY_TASKS.map((task) => ({
+  return config.dailyTasks.map((task) => ({
     taskId: task.id,
-    personId: byTask.get(task.id)!,
+    personId: byTask.get(task.id) ?? config.personIds[0] ?? "",
   }));
 }
 
 export function getDailyAssignments(
   date: Date,
   outsideEatingDays: ReadonlySet<string> = new Set(),
+  config: HouseholdConfig = DEFAULT_HOUSEHOLD_CONFIG,
 ): DailyAssignment[] {
   if (isOutsideEatingDay(date, outsideEatingDays)) return [];
+  if (config.dailyTasks.length === 0 || config.personIds.length === 0) return [];
   const offset = getDailyAssignmentOffset(date, outsideEatingDays);
-  return buildDailyAssignments(offset);
+  return buildDailyAssignments(offset, config);
 }
 
 export function getPersonDailyTask(
   personId: PersonId,
   date: Date,
   outsideEatingDays: ReadonlySet<string> = new Set(),
+  config: HouseholdConfig = DEFAULT_HOUSEHOLD_CONFIG,
 ): DailyTaskId | null {
   if (isOutsideEatingDay(date, outsideEatingDays)) return null;
+  if (config.dailyTasks.length === 0) return null;
   const offset = getDailyAssignmentOffset(date, outsideEatingDays);
-  const taskIdx = taskIndexForPerson(personId, offset);
-  return INDEX_TASK[taskIdx];
+  const taskIdx = taskIndexForPerson(personId, offset, config);
+  return config.dailyTasks[taskIdx]?.id ?? null;
 }
 
-export function getWeekendAssignments(date: Date): WeekendAssignment[] {
+export function getWeekendAssignments(
+  date: Date,
+  config: HouseholdConfig = DEFAULT_HOUSEHOLD_CONFIG,
+): WeekendAssignment[] {
+  if (config.weekendTasks.length === 0 || config.personIds.length === 0) {
+    return [];
+  }
+
   const saturdays = countSaturdaysSinceEpoch(date);
   const weekIndex =
-    (((saturdays + WEEKEND_KITCHEN_OFFSET) % 2) + 2) % 2;
-  const kitchenPair = weekIndex === 0 ? KITCHEN_PAIR_A : KITCHEN_PAIR_B;
-  const otherPair = weekIndex === 0 ? KITCHEN_PAIR_B : KITCHEN_PAIR_A;
+    (((saturdays + config.weekendKitchenOffset) % 2) + 2) % 2;
+  const kitchenPair =
+    weekIndex === 0 ? config.kitchenPairA : config.kitchenPairB;
+  const otherPair =
+    weekIndex === 0 ? config.kitchenPairB : config.kitchenPairA;
 
-  return [
-    { taskId: "kitchen", personIds: [...kitchenPair] },
-    { taskId: "bathroom", personIds: [otherPair[0]] },
-    { taskId: "room", personIds: [otherPair[1]] },
-  ];
+  const kitchenTask = config.weekendTasks.find((t) => t.id === "kitchen");
+  const bathroomTask = config.weekendTasks.find((t) => t.id === "bathroom");
+  const roomTask = config.weekendTasks.find((t) => t.id === "room");
+
+  const assignments: WeekendAssignment[] = [];
+
+  for (const task of config.weekendTasks) {
+    if (task.id === "kitchen" && kitchenTask) {
+      assignments.push({
+        taskId: task.id,
+        personIds: [...kitchenPair].slice(0, task.slots),
+      });
+    } else if (task.id === "bathroom" && bathroomTask) {
+      assignments.push({
+        taskId: task.id,
+        personIds: otherPair[0] ? [otherPair[0]] : [],
+      });
+    } else if (task.id === "room" && roomTask) {
+      assignments.push({
+        taskId: task.id,
+        personIds: otherPair[1] ? [otherPair[1]] : [],
+      });
+    } else {
+      assignments.push({
+        taskId: task.id,
+        personIds: config.personIds.slice(0, task.slots),
+      });
+    }
+  }
+
+  return assignments;
 }
 
 function countSaturdaysSinceEpoch(date: Date): number {
@@ -217,14 +267,27 @@ export function isTomorrow(date: Date): boolean {
   return toDateKey(date) === toDateKey(tomorrow);
 }
 
-export function personName(id: PersonId): string {
-  return PEOPLE.find((p) => p.id === id)?.name ?? id;
+export function personName(
+  id: PersonId,
+  config: HouseholdConfig = DEFAULT_HOUSEHOLD_CONFIG,
+): string {
+  return config.people.find((p) => p.id === id)?.name ?? id;
 }
 
-export function taskName(id: DailyTaskId): string {
-  return DAILY_TASKS.find((t) => t.id === id)?.name ?? id;
+export function taskName(
+  id: DailyTaskId,
+  config: HouseholdConfig = DEFAULT_HOUSEHOLD_CONFIG,
+): string {
+  return config.dailyTasks.find((t) => t.id === id)?.name ?? id;
 }
 
-export function weekendTaskName(id: WeekendTaskId): string {
-  return WEEKEND_TASKS.find((t) => t.id === id)?.name ?? id;
+export function weekendTaskName(
+  id: WeekendTaskId,
+  config: HouseholdConfig = DEFAULT_HOUSEHOLD_CONFIG,
+): string {
+  return config.weekendTasks.find((t) => t.id === id)?.name ?? id;
 }
+
+// Legacy exports for modules that still import counts from rotation
+export const DAILY_TASK_COUNT = DAILY_TASKS.length;
+export const WEEKEND_TASK_COUNT = WEEKEND_TASKS.length;

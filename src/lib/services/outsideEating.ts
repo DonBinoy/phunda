@@ -9,7 +9,13 @@ const toggleSchema = z.object({
   active: z.boolean().optional(),
 });
 
+import { isMockDb } from "@/lib/server/isMockDb";
+import { mockStore } from "@/lib/server/mockStore";
+
 export async function getOutsideEatingDays(from?: string, to?: string) {
+  if (isMockDb()) {
+    return mockStore.getOutsideEatingDays(from, to);
+  }
   let query = `SELECT eat_date::text AS date FROM outside_eating_days`;
   const params: string[] = [];
 
@@ -32,6 +38,10 @@ export async function getOutsideEatingDays(from?: string, to?: string) {
 
 export async function toggleOutsideEating(body: unknown) {
   const data = toggleSchema.parse(body);
+
+  if (isMockDb()) {
+    return mockStore.toggleOutsideEating(data.date);
+  }
 
   const existing = await pool.query(
     `SELECT eat_date FROM outside_eating_days WHERE eat_date = $1::date`,

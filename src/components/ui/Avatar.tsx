@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo } from "react";
-import { PEOPLE } from "@/lib/constants";
-import { PERSON_COLORS } from "@/lib/personColors";
+import { useHouseholdConfig } from "@/context/HouseholdConfigContext";
+import { getPersonColors } from "@/lib/personColors";
 import { computePersonLevel, type LevelTier } from "@/lib/levels";
 import type { PersonId } from "@/lib/types";
 
@@ -51,8 +51,9 @@ interface AvatarProps {
 }
 
 export function Avatar({ personId, completedTasks, size = "md" }: AvatarProps) {
-  const person = PEOPLE.find((p) => p.id === personId)!;
-  const colors = PERSON_COLORS[personId];
+  const { people, personIds } = useHouseholdConfig();
+  const person = people.find((p) => p.id === personId);
+  const colors = getPersonColors(personId, personIds);
   
   const levelInfo = useMemo(() => computePersonLevel(completedTasks), [completedTasks]);
   const tier = TIER_STYLES[levelInfo.tier];
@@ -76,7 +77,7 @@ export function Avatar({ personId, completedTasks, size = "md" }: AvatarProps) {
       <div
         className={`flex items-center justify-center rounded-[1.25rem] font-black ${colors.bg} ${colors.text} ${sizeClasses[size]} ${tier.border} ${tier.shadow}`}
       >
-        {person.name[0]}
+        {person?.name[0] ?? "?"}
       </div>
       <div
         className={`absolute flex items-center justify-center rounded-full font-black tracking-tighter ${tier.badge} ${badgeSizeClasses[size]}`}

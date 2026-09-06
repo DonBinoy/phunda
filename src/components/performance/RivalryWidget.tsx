@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { PEOPLE } from "@/lib/constants";
-import { PERSON_COLORS } from "@/lib/personColors";
+import { useHouseholdConfig } from "@/context/HouseholdConfigContext";
+import { getPersonColors } from "@/lib/personColors";
 import type { PerformanceSummary } from "@/lib/performance";
 import type { PersonId } from "@/lib/types";
 
@@ -11,8 +11,11 @@ interface RivalryWidgetProps {
 }
 
 export function RivalryWidget({ weekPerformance }: RivalryWidgetProps) {
-  const [person1, setPerson1] = useState<PersonId>("don");
-  const [person2, setPerson2] = useState<PersonId>("suraj");
+  const { people, personIds } = useHouseholdConfig();
+  const defaultP1 = personIds[0] ?? "don";
+  const defaultP2 = personIds[1] ?? personIds[0] ?? "suraj";
+  const [person1, setPerson1] = useState<PersonId>(defaultP1);
+  const [person2, setPerson2] = useState<PersonId>(defaultP2);
   const [isEditing, setIsEditing] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -48,10 +51,10 @@ export function RivalryWidget({ weekPerformance }: RivalryWidgetProps) {
   const total = p1Score + p2Score || 1; // prevent divide by zero
   const p1Pct = (p1Score / total) * 100;
 
-  const c1 = PERSON_COLORS[person1];
-  const c2 = PERSON_COLORS[person2];
-  const n1 = PEOPLE.find(p => p.id === person1)?.name ?? "";
-  const n2 = PEOPLE.find(p => p.id === person2)?.name ?? "";
+  const c1 = getPersonColors(person1, personIds);
+  const c2 = getPersonColors(person2, personIds);
+  const n1 = people.find((p) => p.id === person1)?.name ?? person1;
+  const n2 = people.find((p) => p.id === person2)?.name ?? person2;
 
   return (
     <div className="relative overflow-hidden rounded-2xl border border-onyx-800 bg-onyx-950/40 p-5 shadow-[0_4px_30px_rgba(0,0,0,0.1)]">
@@ -75,7 +78,7 @@ export function RivalryWidget({ weekPerformance }: RivalryWidgetProps) {
             onChange={(e) => saveRivals(e.target.value as PersonId, person2)}
             className="w-full rounded-xl border border-onyx-700 bg-onyx-900 p-2 text-sm text-onyx-100 outline-none"
           >
-            {PEOPLE.map((p) => (
+            {people.map((p) => (
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
           </select>
@@ -85,7 +88,7 @@ export function RivalryWidget({ weekPerformance }: RivalryWidgetProps) {
             onChange={(e) => saveRivals(person1, e.target.value as PersonId)}
             className="w-full rounded-xl border border-onyx-700 bg-onyx-900 p-2 text-sm text-onyx-100 outline-none"
           >
-            {PEOPLE.map((p) => (
+            {people.map((p) => (
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
           </select>

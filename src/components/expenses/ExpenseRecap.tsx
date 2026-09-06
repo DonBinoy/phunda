@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useHouseholdConfig } from "@/context/HouseholdConfigContext";
 import {
   computeExpenseRecap,
   type RecapPeriod,
@@ -23,11 +24,12 @@ export function ExpenseRecap({
   entries: ExpenseEntry[];
   showHousehold: boolean;
 }) {
+  const { people } = useHouseholdConfig();
   const [period, setPeriod] = useState<RecapPeriod>("week");
 
   const recap = useMemo(
-    () => computeExpenseRecap(entries, period),
-    [entries, period],
+    () => computeExpenseRecap(entries, period, undefined, people),
+    [entries, period, people],
   );
 
   const hasData = recap.expenseCount > 0 || recap.totalIncome > 0;

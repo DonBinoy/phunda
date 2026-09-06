@@ -9,7 +9,8 @@ import { Avatar } from "@/components/ui/Avatar";
 import { MonthlyPodiumBoard } from "@/components/performance/MonthlyPodiumBoard";
 import { RivalryWidget } from "@/components/performance/RivalryWidget";
 import { useHouseholdStats } from "@/hooks/useHouseholdStats";
-import { PERSON_COLORS } from "@/lib/personColors";
+import { useHouseholdConfig } from "@/context/HouseholdConfigContext";
+import { getPersonColors } from "@/lib/personColors";
 import {
   computeMonthlyPodium,
   computePerformance,
@@ -102,11 +103,13 @@ function SparkleIcon({ className }: { className?: string }) {
 function TopPerformerHero({
   leader,
   periodLabel,
+  personIds,
 }: {
   leader: PersonPerformance;
   periodLabel: string;
+  personIds: readonly string[];
 }) {
-  const colors = PERSON_COLORS[leader.personId];
+  const colors = getPersonColors(leader.personId, personIds);
   const tag = MVP_TAGS[leader.completed % MVP_TAGS.length];
 
   return (
@@ -213,6 +216,7 @@ export function PerformanceManager({
     loading,
     error,
   } = useHouseholdStats();
+  const { config, personIds } = useHouseholdConfig();
 
   const months = useMemo(() => listPodiumMonths(), []);
 
@@ -224,8 +228,10 @@ export function PerformanceManager({
         customTasks,
         todos,
         outsideEatingDays,
+        undefined,
+        config,
       ),
-    [period, completions, customTasks, todos, outsideEatingDays],
+    [period, completions, customTasks, todos, outsideEatingDays, config],
   );
 
   const podium = useMemo(() => {
@@ -238,8 +244,10 @@ export function PerformanceManager({
       customTasks,
       todos,
       outsideEatingDays,
+      undefined,
+      config,
     );
-  }, [months, podiumIndex, completions, customTasks, todos, outsideEatingDays]);
+  }, [months, podiumIndex, completions, customTasks, todos, outsideEatingDays, config]);
 
   const houseCup = useMemo(
     () =>
@@ -248,8 +256,10 @@ export function PerformanceManager({
         customTasks,
         todos,
         outsideEatingDays,
+        undefined,
+        config,
       ),
-    [completions, customTasks, todos, outsideEatingDays],
+    [completions, customTasks, todos, outsideEatingDays, config],
   );
 
   const weekSummary = useMemo(
@@ -260,8 +270,10 @@ export function PerformanceManager({
         customTasks,
         todos,
         outsideEatingDays,
+        undefined,
+        config,
       ),
-    [completions, customTasks, todos, outsideEatingDays],
+    [completions, customTasks, todos, outsideEatingDays, config],
   );
 
   if (loading) {
@@ -302,7 +314,11 @@ export function PerformanceManager({
       />
 
       {leader && (
-        <TopPerformerHero leader={leader} periodLabel={summary.periodLabel} />
+        <TopPerformerHero
+          leader={leader}
+          periodLabel={summary.periodLabel}
+          personIds={personIds}
+        />
       )}
 
       {period === "week" && (
@@ -372,7 +388,7 @@ export function PerformanceManager({
         ) : (
           <div className="space-y-3">
             {summary.people.map((person, index) => {
-              const colors = PERSON_COLORS[person.personId as PersonId];
+              const colors = getPersonColors(person.personId, personIds);
               const barPct = Math.round((person.completed / maxCompleted) * 100);
               const isTop = person.personId === summary.topPerformer;
 
@@ -479,7 +495,7 @@ export function PerformanceManager({
               
               <div className="mt-5 space-y-3">
                 {houseCup.standings.map((s, idx) => {
-                  const c = PERSON_COLORS[s.personId];
+                  const c = getPersonColors(s.personId, personIds);
                   const isTop = idx === 0 && s.points > 0;
                   return (
                     <div

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useExpenseTemplates } from "@/hooks/useExpenseTemplates";
-import { PEOPLE } from "@/lib/constants";
+import { useHouseholdConfig } from "@/context/HouseholdConfigContext";
 import { personName } from "@/lib/rotation";
 import { lockedPersonId } from "@/lib/personalize";
 import type { ViewScope, PersonId, ExpenseEntry } from "@/lib/types";
@@ -32,6 +32,7 @@ export function ExpenseTemplates({
     removeTemplate,
     applyTemplate,
   } = useExpenseTemplates();
+  const { people, config } = useHouseholdConfig();
   const [showManager, setShowManager] = useState(false);
   const [applyingId, setApplyingId] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -145,9 +146,9 @@ export function ExpenseTemplates({
               </p>
               <p className="mt-0.5 text-[10px] text-onyx-600">
                 {t.splitEqually
-                  ? "Split 4 ways"
+                  ? "Split equally"
                   : t.personId
-                    ? personName(t.personId)
+                    ? personName(t.personId, config)
                     : "Tap to add"}
               </p>
               {applyingId === t.id && (
@@ -198,7 +199,7 @@ export function ExpenseTemplates({
                     Default paid by (optional)
                   </label>
                   <div className="grid grid-cols-4 gap-2">
-                    {PEOPLE.map((person) => (
+                    {people.map((person) => (
                       <button
                         key={person.id}
                         type="button"

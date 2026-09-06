@@ -1,6 +1,7 @@
 "use client";
 
-import { PERSON_COLORS } from "@/lib/personColors";
+import { useHouseholdConfig } from "@/context/HouseholdConfigContext";
+import { getPersonColors } from "@/lib/personColors";
 import type { MonthlyPodium } from "@/lib/performance";
 import type { PersonId } from "@/lib/types";
 
@@ -40,6 +41,7 @@ export function MonthlyPodiumBoard({
     { place: 3, person: bronze, height: "h-20 sm:h-24" },
   ];
 
+  const { personIds } = useHouseholdConfig();
   const hasAnyone = podium.places.some(Boolean);
 
   return (
@@ -88,7 +90,7 @@ export function MonthlyPodiumBoard({
               );
             }
 
-            const colors = PERSON_COLORS[person.personId];
+            const colors = getPersonColors(person.personId, personIds);
             const clickable = !!onSelectPerson;
 
             return (

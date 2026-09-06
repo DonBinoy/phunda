@@ -2,13 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useExpenses } from "@/hooks/useExpenses";
+import { useHouseholdConfig } from "@/context/HouseholdConfigContext";
 import { usePersonSession } from "@/context/PersonSessionContext";
 import { Alert } from "@/components/ui/Alert";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ExpenseRecap } from "@/components/expenses/ExpenseRecap";
 import { ExpenseTemplates } from "@/components/expenses/ExpenseTemplates";
-import { PEOPLE, PERSON_IDS } from "@/lib/constants";
 import { filterExpenses, lockedPersonId } from "@/lib/personalize";
 import { buildSplitShares } from "@/lib/expenses/split";
 import { personName } from "@/lib/rotation";
@@ -164,8 +164,9 @@ function PersonRecords({
 
 export function ExpenseManager() {
   const { viewScope, isAdmin } = usePersonSession();
+  const { config, people, personIds } = useHouseholdConfig();
   const { entries: allEntries, totals, loading, error, addEntry, addSplitExpense, mergeCreated, removeEntry } =
-    useExpenses();
+    useExpenses(personIds);
   const [amount, setAmount] = useState("");
   const [comment, setComment] = useState("");
   const [type, setType] = useState<"expense" | "income">("expense");
@@ -192,13 +193,13 @@ export function ExpenseManager() {
   );
 
   const byPerson = useMemo(() => {
-    return PEOPLE.map((person) => ({
+    return people.map((person) => ({
       person,
       income: entries.filter((e) => e.type === "income" && e.personId === person.id),
       expense: entries.filter((e) => e.type === "expense" && e.personId === person.id),
       stats: totals.byPerson[person.id],
     }));
-  }, [entries, totals.byPerson]);
+  }, [entries, totals.byPerson, people]);
 
   const unassignedExpense = useMemo(
     () => entries.filter((e) => e.type === "expense" && !e.personId),
@@ -208,8 +209,8 @@ export function ExpenseManager() {
   const splitPreview = useMemo(() => {
     const parsed = parseFloat(amount);
     if (!parsed || parsed <= 0 || entryMode !== "split") return null;
-    return buildSplitShares(parsed, PERSON_IDS);
-  }, [amount, entryMode]);
+    return buildSplitShares(parsed, personIds);
+  }, [amount, entryMode, personIds]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -297,7 +298,7 @@ export function ExpenseManager() {
 
       {isAdmin ? (
         <div className="glass-card flex flex-wrap gap-1.5 p-1.5">
-          {PEOPLE.map((person) => (
+          {people.map((person) => (
             <button
               key={person.id}
               type="button"
@@ -469,7 +470,7 @@ export function ExpenseManager() {
           </label>
           {isAdmin ? (
             <div className="grid grid-cols-4 gap-2">
-              {PEOPLE.map((person) => (
+              {people.map((person) => (
                 <button
                   key={person.id}
                   type="button"
@@ -488,7 +489,7 @@ export function ExpenseManager() {
             </div>
           ) : (
             <p className="rounded-lg border border-onyx-700 bg-onyx-950 px-3 py-2 text-sm text-pine-400">
-              {PEOPLE.find((p) => p.id === personId)?.name}
+              {people.find((p) => p.id === personId)?.name}
             </p>
           )}
         </div>

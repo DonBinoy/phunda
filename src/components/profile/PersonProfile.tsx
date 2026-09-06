@@ -15,8 +15,8 @@ import {
   type AchievementRarity,
   type EvaluatedAchievement,
 } from "@/lib/achievements";
-import { PEOPLE } from "@/lib/constants";
-import { PERSON_COLORS } from "@/lib/personColors";
+import { useHouseholdConfig } from "@/context/HouseholdConfigContext";
+import { getPersonColors } from "@/lib/personColors";
 import {
   computeCompletionStreak,
   computeMonthlyPodium,
@@ -229,9 +229,13 @@ export function PersonProfile({
     loading,
     error,
   } = useHouseholdStats();
+  const { people, personIds, config } = useHouseholdConfig();
 
-  const person = PEOPLE.find((p) => p.id === personId)!;
-  const colors = PERSON_COLORS[personId];
+  const person = people.find((p) => p.id === personId) ?? {
+    id: personId,
+    name: personId,
+  };
+  const colors = getPersonColors(personId, personIds);
 
   const [pinnedIds, setPinnedIds] = useState<string[]>([]);
   useEffect(() => {
@@ -288,8 +292,10 @@ export function PersonProfile({
             customTasks,
             todos,
             outsideEatingDays,
+            undefined,
+            config,
           ),
-    [loading, completions, customTasks, todos, outsideEatingDays],
+    [loading, completions, customTasks, todos, outsideEatingDays, config],
   );
 
   const thisMonth = useMemo(
@@ -303,8 +309,10 @@ export function PersonProfile({
             customTasks,
             todos,
             outsideEatingDays,
+            undefined,
+            config,
           ),
-    [loading, completions, customTasks, todos, outsideEatingDays],
+    [loading, completions, customTasks, todos, outsideEatingDays, config],
   );
 
   const streak = useMemo(
@@ -345,8 +353,8 @@ export function PersonProfile({
 
       {canBrowseAll && onSelectPerson && (
         <div className="flex flex-wrap gap-2">
-          {PEOPLE.map((p) => {
-            const c = PERSON_COLORS[p.id];
+          {people.map((p) => {
+            const c = getPersonColors(p.id, personIds);
             const active = p.id === personId;
             return (
               <button
